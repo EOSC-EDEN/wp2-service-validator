@@ -41,26 +41,38 @@ def run_batch_validation():
 
             logging.info(f"[{i + 1}/{total_rows}] Validating: {url}")
 
-            # Validate the URL (auto-detection only, no user-provided type)
+            # Validate the URL (auto-detection only)
             result = validator.validate_url(url)
 
-            # Extract detected type
             detected_type = result.get('detected_api_type', 'N/A')
+            detection_method = result.get('detection_method', 'N/A')
 
             if detected_type != 'N/A':
-                logging.info(f"  ✓ DETECTED: '{detected_type}'")
+                logging.info(f"  ✓ DETECTED: '{detected_type}' (Method: {detection_method})")
             else:
                 logging.info(f"  ℹ️  No API type detected")
+
+            # Check for specific cases to report in the CSV
+            is_doc_page = 'likely an API documentation page' in result.get('note', '')
+            had_redirect = 'redirects' in result
+            
+            # Check if the URL was modified by the validator
+            constructed_url = result.get('url', url)
+            was_constructed = constructed_url != url
 
             # Combine original row data with validation results
             output_row = row.copy()
             output_row.update({
                 'is_valid': result.get('valid'),
                 'status_code': result.get('status_code', 'N/A'),
-                'final_url': result.get('final_url', url),
+                'constructed_url': constructed_url if was_constructed else '',  # Leave blank if no change
+                'final_url': result.get('final_url', constructed_url), # The URL we ended up at (after redirects)
                 'error_details': result.get('error', ''),
                 'detected_api_type': detected_type,
-                'auth_required': result.get('auth_required', 'No')
+                'detection_method': detection_method,
+                'auth_required': result.get('auth_required', 'No'),
+                'is_doc_page': is_doc_page,
+                'had_redirect': had_redirect
             })
             results.append(output_row)
 
@@ -69,18 +81,33 @@ def run_batch_validation():
         logging.info("No data to write.")
         return
 
-    output_fieldnames = fieldnames + [
+    # Ensure all keys from the first result are in the headers, just in case
+    all_keys = set()
+    if results:
+        for key in results[0].keys():
+            all_keys.add(key)
+    
+    # Define the desired order, including the original fieldnames
+    ordered_fieldnames = fieldnames + [
         'is_valid',
         'status_code',
+        'constructed_url',
         'final_url',
         'error_details',
         'detected_api_type',
-        'auth_required'
+        'detection_method',
+        'auth_required',
+        'is_doc_page',
+        'had_redirect'
     ]
+    
+    # Use the ordered list, but ensure any unexpected keys are also included at the end
+    final_fieldnames = ordered_fieldnames + sorted(list(all_keys - set(ordered_fieldnames)))
+
 
     try:
         with open(OUTPUT_CSV, mode='w', newline='', encoding='utf-8') as outfile:
-            writer = csv.DictWriter(outfile, fieldnames=output_fieldnames)
+            writer = csv.DictWriter(outfile, fieldnames=final_fieldnames, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(results)
         logging.info(f"Validation complete. Results saved to '{OUTPUT_CSV}'.")

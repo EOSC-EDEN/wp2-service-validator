@@ -43,25 +43,25 @@ class ServiceValidator:
 
     def _detect_api_type(self, url):
         """
-        Multi-stage detection: URL patterns → Response headers → Body content → None
+        Multi-stage detection. Returns a tuple: (detected_type, detection_method)
         """
         detected = self._detect_from_url_patterns(url)
         if detected:
             self.logger.info(f"API type '{detected}' detected from URL patterns.")
-            return detected
+            return detected, 'url_pattern'
 
         detected = self._detect_api_type_from_headers(url)
         if detected:
             self.logger.info(f"API type '{detected}' detected from response headers.")
-            return detected
+            return detected, 'headers'
 
         detected = self._sniff_api_type_from_body(url)
         if detected:
             self.logger.info(f"API type '{detected}' detected from response body content.")
-            return detected
+            return detected, 'body_sniffing'
 
         self.logger.info("No API type detected through any method.")
-        return None
+        return None, None
 
     def _detect_from_url_patterns(self, url):
         """
@@ -118,11 +118,19 @@ class ServiceValidator:
             if 'application/json' in content_type:
                 return 'REST'
 
+
             if 'application/rss+xml' in content_type:
                 return 'RSS'
 
             if 'application/atom+xml' in content_type:
                 return 'ATOM'
+
+            # NOTE: circular reasoning:
+            # For example, when we detect 'REST', ee look up its configuration in services_default_queries.csv.
+            # That configuration primarily tells the validator to expect application/json.
+            # So, the logic becomes slightly circular: Header says JSON -> We guess REST -> Config for REST says to expect JSON -> We confirm it's JSON.
+            # label might be inaccurate, however, the validator's primary goal —to confirm that the endpoint is active and
+            # serves machine-readable data—has been successfully met. The harm is minimal, but this should be improved
 
             return None
 
@@ -144,7 +152,6 @@ class ServiceValidator:
                 'OAI-PMH': ['<oai-pmh>', 'oai:identifier', 'oai:metadata'],
                 'SPARQL': ['<rdf:rdf', 'sparql', 'rdf+xml'],
                 'OpenAPI': ['"openapi"'],
-                'REST': ['"', '{}', '[]'],
                 'RSS': ['<rss', '<channel', '<item'],
                 'ATOM': ['<feed', 'xmlns="http://www.w3.org/2005/atom"']
             }
@@ -187,7 +194,7 @@ class ServiceValidator:
 
         auth_required = self._check_auth_requirement(url)
 
-        detected_type = self._detect_api_type(url)
+        detected_type, detection_method = self._detect_api_type(url)
         api_type = detected_type
 
         if (api_type and api_type.upper() == 'FTP') or url.startswith('ftp://'):
@@ -200,6 +207,8 @@ class ServiceValidator:
                 result = self._check_generic_http(url)
 
         result['detected_api_type'] = detected_type if detected_type else 'N/A'
+        if detection_method:
+            result['detection_method'] = detection_method
         if auth_required:
             result['auth_required'] = auth_required
 
@@ -263,8 +272,6 @@ class ServiceValidator:
                             if json_links:
                                 recovery_url = urljoin(response.url, json_links[0])
                                 self.logger.info(f"Attempting to validate recovery URL: {recovery_url}")
-                                # Recursively call validate_url, but we must ensure we don't loop.
-                                # Since validate_url re-detects, we rely on the recovery URL being different/better.
                                 recovery_result = self.validate_url(recovery_url, is_recovery_attempt=True)
                                 if recovery_result.get('valid'):
                                     recovery_result['note'] = f"Recovered from HTML page; original URL was {url}"
@@ -275,7 +282,6 @@ class ServiceValidator:
                                         f"Smart recovery FAILED for {url} via {recovery_url}: {recovery_result.get('error', 'Unknown error')}")
                             else:
                                 self.logger.info(f"No JSON links found on HTML page for {url}.")
-                                # Fallback for human-readable documentation pages
                                 response_text_lower = response.text.lower()
                                 if 'swagger-ui' in response_text_lower or 'id="swagger-ui"' in response_text_lower or 'rest api' in response_text_lower:
                                     self.logger.info(
@@ -319,14 +325,30 @@ class ServiceValidator:
         """
         try:
             response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            
+            is_valid = 200 <= response.status_code < 400
+            note = None
+
+            # Check for decommissioned pages even on a generic check
+            if is_valid and 'text/html' in response.headers.get('Content-Type', '').lower():
+                decommissioned_keywords = ['no longer accessible', 'migrated to', 'decommissioned']
+                response_text_lower = response.text.lower()
+                if any(keyword in response_text_lower for keyword in decommissioned_keywords):
+                    is_valid = False
+                    note = "Endpoint is a documentation page for a decommissioned/migrated service."
+                    self.logger.warning(f"Detected decommissioned service page at {url}.")
+
             redirect_chain = [{"status_code": r.status_code, "url": r.url} for r in response.history]
 
             result = {
-                "valid": 200 <= response.status_code < 400,
+                "valid": is_valid,
                 "status_code": response.status_code,
-                "content_type": response.headers.get('Content-Type', '').lower(),
+                "content_type": response.headers.get('Content-Type', 'unknown').lower(),
                 "url": url
             }
+            
+            if note:
+                result["note"] = note
 
             if redirect_chain:
                 result["redirects"] = redirect_chain
