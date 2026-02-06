@@ -21,46 +21,25 @@ def main():
     print(f"\nValidating: {url} (Auto-Detection only)...\n")
 
     validator = ServiceValidator()
-    # No api_type parameter - automatic detection only
+    # The validator returns a complete dictionary with all data points
     result = validator.validate_url(url)
 
-    # --- Enrich result to match batch_validator output ---
-    
-    # 1. Detection Info
-    detected_type = result.get('detected_api_type', 'N/A')
-    detection_method = result.get('detection_method', 'N/A')
-
-    # 2. Documentation Page Flag
-    is_doc_page = 'likely an API documentation page' in result.get('note', '')
-    result['is_doc_page'] = is_doc_page
-
-    # 3. Redirect Info
-    redirect_chain_list = result.get('redirects', [])
-    had_redirect = bool(redirect_chain_list)
-    
-    result['had_redirect'] = had_redirect
-    # Note: We do NOT add 'redirect_chain' string here, as the JSON 'redirects' list is sufficient and cleaner for console output.
-
-    # 4. URL Construction Info
-    constructed_url = result.get('url', url)
-    was_constructed = constructed_url != url
-    
-    # Add explicit fields for clarity
-    result['constructed_url'] = constructed_url if was_constructed else ""
-    result['final_url'] = result.get('final_url', constructed_url)
-    
-    # Ensure auth_required is present (it comes from validator, but good to be explicit)
-    if 'auth_required' not in result:
-        result['auth_required'] = 'No'
+    # --- Prepare for Console Output ---
+    # For JSON output, the detailed 'redirects' list is better than the flattened string.
+    # We can remove the redundant 'redirect_chain' for cleaner console output.
+    console_result = result.copy()
+    console_result.pop('redirect_chain', None)
 
 
     print("-" * 30)
     print("VALIDATION RESULT:")
     
-    # Highlight the detected type
+    # Highlight the detected type from the final result
+    detected_type = result.get('detected_api_type', 'N/A')
+    detection_method = result.get('detection_method', 'N/A')
     print(f"ℹ️  Auto-Detected API Type: {detected_type} (Method: {detection_method})")
 
-    print(json.dumps(result, indent=4))
+    print(json.dumps(console_result, indent=4))
     print("-" * 30)
 
 if __name__ == "__main__":

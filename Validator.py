@@ -31,7 +31,7 @@ class ServiceValidator:
             with open(csv_path, mode='r', encoding='utf-8') as infile:
                 reader = csv.DictReader(infile)
                 for row in reader:
-                    api_type = row.get('Acronym') # Use Acronym as key, not Type
+                    api_type = row.get('Acronym')
                     if api_type and api_type.strip():
                         mappings[api_type] = {
                             'suffix': row.get('default query', ''),
@@ -71,13 +71,8 @@ class ServiceValidator:
         Stage 1: Fast pattern matching based on URL structure.
         """
         url_lower = url.lower()
-
-        if 'oai' in url_lower:
-            if 'verb=' in url_lower:
-                return 'OAI-PMH'
-            if url_lower.endswith('/oai') or '/oai/' in url_lower:
-                return 'OAI-PMH'
-
+        if 'oai' in url_lower and ('verb=' in url_lower or url_lower.endswith('/oai') or '/oai/' in url_lower):
+            return 'OAI-PMH'
         if 'service=csw' in url_lower and 'request=getcapabilities' in url_lower:
             return 'OGC-CSW'
 
@@ -106,31 +101,11 @@ class ServiceValidator:
         Stage 2: Analyze response headers from a requests.Response object.
         """
         content_type = response.headers.get('Content-Type', '').lower()
-        server = response.headers.get('Server', '').lower()
-
-        self.logger.debug(f"Header analysis for {response.url}: Content-Type='{content_type}', Server='{server}'")
-
-        if 'application/xml' in content_type or 'text/xml' in content_type:
-            return 'OAI-PMH'
-
-        if 'rdf+xml' in content_type or 'ld+json' in content_type:
-            return 'SPARQL'
-
-        if 'application/json' in content_type:
-            return 'REST'
-
-        if 'application/rss+xml' in content_type:
-            return 'RSS'
-
-        if 'application/atom+xml' in content_type:
-            return 'ATOM'
-        # NOTE: circular reasoning:
-        # For example, when we detect 'REST', ee look up its configuration in services_default_queries.csv.
-        # That configuration primarily tells the validator to expect application/json.
-        # So, the logic becomes slightly circular: Header says JSON -> We guess REST -> Config for REST says to expect JSON -> We confirm it's JSON.
-        # label might be inaccurate, however, the validator's primary goal —to confirm that the endpoint is active and
-        # serves machine-readable data—has been successfully met. The harm is minimal, but this should be improved
-
+        if 'application/xml' in content_type or 'text/xml' in content_type: return 'OAI-PMH'
+        if 'rdf+xml' in content_type or 'ld+json' in content_type: return 'SPARQL'
+        if 'application/json' in content_type: return 'REST'
+        if 'application/rss+xml' in content_type: return 'RSS'
+        if 'application/atom+xml' in content_type: return 'ATOM'
         return None
 
     def _sniff_api_type_from_body(self, response):
@@ -144,17 +119,15 @@ class ServiceValidator:
             self.logger.debug(f"Body sniffing for {response.url}: checking content patterns...")
 
             patterns = {
-                'OAI-PMH': ['<oai-pmh>', 'oai:identifier', 'oai:metadata'],
-                'SPARQL': ['<rdf:rdf', 'sparql', 'rdf+xml'],
+                'OAI-PMH': ['<oai-pmh>', 'oai:identifier'],
+                'SPARQL': ['<rdf:rdf', 'sparql'],
                 'OpenAPI': ['"openapi"'],
-                'RSS': ['<rss', '<channel', '<item'],
+                'RSS': ['<rss', '<channel'],
                 'ATOM': ['<feed', 'xmlns="http://www.w3.org/2005/atom"']
             }
-
             for api_type, markers in patterns.items():
                 if any(marker in text for marker in markers):
                     return api_type
-
             return None
 
         except Exception as e: # Catch any error during text processing
@@ -169,15 +142,10 @@ class ServiceValidator:
         try:
             # Use HEAD request for efficiency, but GET is safer for some servers
             response = requests.get(url, headers=self.headers, timeout=self.timeout, allow_redirects=False)
-            if response.status_code == 401:
-                return 'required'
-            elif response.status_code == 403:
-                return 'required'
-            return None
-        except requests.RequestException as e:
-            self.logger.debug(f"Could not determine auth requirement for {url}: {e}")
+            return 'required' if response.status_code in [401, 403] else 'No'
+        except requests.RequestException:
             return 'unknown'
-            
+
     def _build_redirect_chain_info(self, response):
         """Builds a list of redirect steps with status code and destination URL."""
         chain = []
@@ -202,192 +170,112 @@ class ServiceValidator:
         # 1. Check auth requirement for the *initial* URL (without following redirects)
         auth_required = self._check_auth_requirement(url)
 
-        # 2. Make the primary HTTP request, allowing redirects
         try:
             main_response = requests.get(url, headers=self.headers, timeout=self.timeout, allow_redirects=True)
-            final_url = main_response.url
-            status_code = main_response.status_code
-            content_type = main_response.headers.get('Content-Type', '').lower()
         except requests.RequestException as e:
-            return {"valid": False, "error": str(e), "url": url} # Return early on request failure
+            return {"valid": False, "error": str(e), "url": url, "auth_required": auth_required}
 
-        # 3. Perform API type detection on the *final_url* and its response content
+        final_url = main_response.url
         detected_type, detection_method = self._detect_api_type_from_response(main_response, final_url)
-        api_type = detected_type # Use detected type for subsequent config lookup
-
-        # 4. Determine validation path based on detected API type
-        if (api_type and api_type.upper() == 'FTP') or final_url.startswith('ftp://'):
-            # FTP check needs to be adapted for final_url, or handled separately if initial was FTP
-            # For now, if final_url is FTP, we'll treat it as such.
-            result = self._check_ftp(final_url)
-        else:
-            config = self.protocol_configs.get(api_type)
-            if config:
-                result = self._check_specific_http_from_response(main_response, final_url, config, api_type, is_recovery_attempt)
-            else:
-                result = self._check_generic_http_from_response(main_response, final_url)
-
-        # 5. Populate the final result dictionary
-        result['detected_api_type'] = detected_type if detected_type else 'N/A'
-        if detection_method:
-            result['detection_method'] = detection_method
-        if auth_required:
-            result['auth_required'] = auth_required
         
-        # Ensure final_url and redirect chain are correctly added
-        result['final_url'] = final_url
-        result['redirects'] = self._build_redirect_chain_info(main_response) # This needs to be called here
+        config = self.protocol_configs.get(detected_type)
+        if config:
+            core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt)
+        else:
+            core_result = self._check_generic_http(main_response, final_url)
 
-        return result
+        # --- Assemble the final, complete result dictionary ---
+        final_result = core_result.copy()
+        
+        final_result['detected_api_type'] = detected_type if detected_type else 'N/A'
+        final_result['detection_method'] = detection_method if detection_method else 'N/A'
+        final_result['auth_required'] = auth_required
 
-    def _check_specific_http_from_response(self, response, final_url, config, api_type, is_recovery_attempt):
-        """
-        Handles validation using the extracted default queries, given a pre-fetched response.
-        """
+        redirect_chain_list = self._build_redirect_chain_info(main_response)
+        final_result['redirects'] = redirect_chain_list
+        final_result['had_redirect'] = bool(redirect_chain_list)
+        final_result['redirect_chain'] = " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list])
+
+        constructed_url = final_result.pop('url', url) # Pop ambiguous 'url' key
+        final_result['constructed_url'] = constructed_url if constructed_url != url else ''
+        final_result['final_url'] = final_url
+
+        final_result['is_doc_page'] = 'likely an API documentation page' in final_result.get('note', '')
+
+        return final_result
+
+    def _check_specific_http(self, response, final_url, config, api_type, is_recovery_attempt):
         suffix = config['suffix']
         expected_mime = config['accept']
 
         if suffix and '{endpointURI}' in suffix:
             suffix = suffix.replace('{endpointURI}', '')
 
-        target_url = final_url # Start with the final URL from the initial request
-
-        # If a suffix is defined, we might need to construct a *new* target_url for the specific check
-        # This means we might make a *second* request if the suffix needs to be applied.
-        # This is a complex interaction. Let's simplify: if a suffix is defined, we assume the initial request was to the base.
-        # If the initial request already redirected, and we have a suffix, we should apply the suffix to the final_url.
-        
-        # Re-evaluate target_url construction based on final_url and suffix
-        constructed_url_for_check = final_url # Default to final_url if no suffix applied
+        constructed_url = final_url
         if suffix:
-            # Heuristic: If the suffix adds a 'verb=' param (common in OAI), 
-            # and the final_url already has one, assume the user provided a full query.
             if 'verb=' in suffix and 'verb=' in final_url:
-                constructed_url_for_check = final_url
-            # Avoid appending path suffixes to file-like URLs (e.g. index.html)
+                pass
             elif final_url.lower().endswith(('.html', '.htm', '.php', '.jsp', '.aspx')) and suffix.startswith('/'):
-                constructed_url_for_check = final_url
+                pass
             else:
-                if suffix.startswith('?'):
-                    separator = '&' if '?' in final_url else '?'
-                    constructed_url_for_check = f"{final_url}{separator}{suffix.lstrip('?')}"
-                elif suffix.startswith('/'):
-                    constructed_url_for_check = urljoin(final_url, suffix)
-                else:
-                    constructed_url_for_check = f"{final_url.rstrip('/')}/{suffix.lstrip('/')}"
+                separator = '&' if '?' in final_url else '?'
+                constructed_url = f"{final_url.rstrip('/')}{separator if suffix.startswith('?') else '/'}{suffix.lstrip('?/ ')}"
         
-        # If the constructed_url_for_check is different from the final_url, we need to make another request
-        if constructed_url_for_check != final_url:
+        if constructed_url != final_url:
             try:
-                response = requests.get(constructed_url_for_check, headers=self.headers, timeout=self.timeout)
+                response = requests.get(constructed_url, headers=self.headers, timeout=self.timeout)
             except requests.RequestException as e:
-                return {"valid": False, "error": str(e), "url": constructed_url_for_check}
-        else:
-            # Otherwise, use the response we already have
-            response = response
-
+                return {"valid": False, "error": str(e), "url": constructed_url}
+        
         is_valid = 200 <= response.status_code < 400
         received_mime = response.headers.get('Content-Type', '').lower()
-        mime_warning = None
-        match_found = True
+        
+        if is_valid and expected_mime and not any(t in received_mime for t in expected_mime.split(',')):
+            if 'application/json' in expected_mime and 'text/html' in received_mime and not is_recovery_attempt:
+                self.logger.info(f"Attempting smart recovery for {final_url}: Expected JSON, got HTML.")
+                response_text_lower = response.text.lower()
+                if 'swagger-ui' in response_text_lower or 'id="swagger-ui"' in response_text_lower or 'rest api' in response_text_lower:
+                    return {
+                        "valid": True, "status_code": response.status_code, "content_type": received_mime,
+                        "url": constructed_url, "expected_content_type": expected_mime,
+                        "note": "Received HTML (likely an API documentation page) instead of JSON. Status 200 OK suggests service is active."
+                    }
+            is_valid = False
+            return {
+                "valid": is_valid, "status_code": response.status_code, "content_type": received_mime,
+                "url": constructed_url, "expected_content_type": expected_mime,
+                "error": f"Invalid Content-Type: expected '{expected_mime}', got '{received_mime}'"
+            }
 
-        if is_valid and expected_mime:
-            accepted_types = [t.strip().lower() for t in expected_mime.split(',')]
-            match_found = any(t in received_mime for t in accepted_types)
-
-            if not match_found:
-                if 'application/json' in expected_mime and 'text/html' in received_mime and not is_recovery_attempt:
-                    self.logger.info(f"Attempting smart recovery for {final_url}: Expected JSON, got HTML.")
-                    try:
-                        self.logger.info(f"HTML Snippet (first 500 chars): {response.text[:500]}")
-                        doc = html.fromstring(response.text)
-                        all_links = doc.xpath('//a/@href')
-                        self.logger.info(f"All links found on page: {all_links}")
-                        json_links = doc.xpath('//a[contains(@href, ".json")]/@href')
-                        self.logger.info(f"Found potential JSON links: {json_links}")
-
-                        if json_links:
-                            recovery_url = urljoin(response.url, json_links[0])
-                            self.logger.info(f"Attempting to validate recovery URL: {recovery_url}")
-                            # Recursive call to validate_url with the new recovery URL
-                            recovery_result = self.validate_url(recovery_url, is_recovery_attempt=True)
-                            if recovery_result.get('valid'):
-                                recovery_result['note'] = f"Recovered from HTML page; original URL was {final_url}"
-                                self.logger.info(f"Smart recovery SUCCESS for {final_url} via {recovery_url}")
-                                return recovery_result
-                            else:
-                                self.logger.warning(
-                                    f"Smart recovery FAILED for {final_url} via {recovery_url}: {recovery_result.get('error', 'Unknown error')}")
-                        else:
-                            self.logger.info(f"No JSON links found on HTML page for {final_url}.")
-                            response_text_lower = response.text.lower()
-                            if 'swagger-ui' in response_text_lower or 'id="swagger-ui"' in response_text_lower or 'rest api' in response_text_lower:
-                                self.logger.info(
-                                    f"Detected API documentation page on {final_url}. Marking as valid (content unverified).")
-                                return {
-                                    "valid": True, "status_code": response.status_code, "content_type": received_mime,
-                                    "url": constructed_url_for_check, "expected_content_type": expected_mime,
-                                    "note": "Received HTML (likely an API documentation page) instead of JSON. Status 200 OK suggests service is active."
-                                }
-                    except Exception as e:
-                        self.logger.error(f"Error during smart recovery for {final_url}: {e}")
-
-                is_valid = False
-                mime_warning = f"Invalid Content-Type: expected '{expected_mime}', got '{received_mime}'"
-
-        result = {
-            "valid": is_valid,
-            "status_code": response.status_code,
-            "content_type": received_mime,
-            "url": constructed_url_for_check, # This is the URL that was actually requested for this specific check
-            "expected_content_type": expected_mime if expected_mime else None
+        return {
+            "valid": is_valid, "status_code": response.status_code, "content_type": received_mime,
+            "url": constructed_url, "expected_content_type": expected_mime
         }
 
-        if mime_warning:
-            result["error"] = mime_warning
-
-        return result
-
-    def _check_generic_http_from_response(self, response, final_url):
-        """
-        Standard GET for types without specific path requirements, given a pre-fetched response.
-        """
+    def _check_generic_http(self, response, final_url):
         is_valid = 200 <= response.status_code < 400
         note = None
 
         if is_valid and 'text/html' in response.headers.get('Content-Type', '').lower():
             decommissioned_keywords = ['no longer accessible', 'migrated to', 'decommissioned']
-            response_text_lower = response.text.lower()
-            if any(keyword in response_text_lower for keyword in decommissioned_keywords):
+            if any(keyword in response.text.lower() for keyword in decommissioned_keywords):
                 is_valid = False
                 note = "Endpoint is a documentation page for a decommissioned/migrated service."
                 self.logger.warning(f"Detected decommissioned service page at {final_url}.")
 
         result = {
-            "valid": is_valid,
-            "status_code": response.status_code,
+            "valid": is_valid, "status_code": response.status_code,
             "content_type": response.headers.get('Content-Type', 'unknown').lower(),
-            "url": final_url # For generic, the URL is the final_url
+            "url": final_url
         }
-        
-        if note:
-            result["note"] = note
-
+        if note: result["note"] = note
         return result
 
     def _check_ftp(self, url):
-        """
-        Validates FTP endpoints.
-        """
         parsed = urlparse(url)
-        host = parsed.hostname
-        port = parsed.port if parsed.port else 21
-
         try:
-            ftp = ftplib.FTP()
-            ftp.connect(host, port, timeout=self.timeout)
-            ftp.login()
-            ftp.quit()
-            return {"valid": True, "status_code": 220}
+            with ftplib.FTP(host=parsed.hostname, timeout=self.timeout) as ftp:
+                ftp.login()
+                return {"valid": True, "status_code": 220, "url": url}
         except Exception as e:
-            return {"valid": False, "error": str(e)}
+            return {"valid": False, "error": str(e), "url": url}

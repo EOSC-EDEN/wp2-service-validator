@@ -41,45 +41,18 @@ def run_batch_validation():
 
             logging.info(f"[{i + 1}/{total_rows}] Validating: {url}")
 
-            # Validate the URL (auto-detection only)
+            # The validator returns a complete dictionary with all data points
             result = validator.validate_url(url)
 
-            detected_type = result.get('detected_api_type', 'N/A')
-            detection_method = result.get('detection_method', 'N/A')
+            # --- Prepare for CSV Output ---
+            # For CSV output, the flattened 'redirect_chain' string is better than the nested list.
+            # We can remove the 'redirects' list to avoid potential issues with the CSV writer.
+            csv_row = result.copy()
+            csv_row.pop('redirects', None)
 
-            if detected_type != 'N/A':
-                logging.info(f"  ✓ DETECTED: '{detected_type}' (Method: {detection_method})")
-            else:
-                logging.info(f"  ℹ️  No API type detected")
-
-            # Check for specific cases to report in the CSV
-            is_doc_page = 'likely an API documentation page' in result.get('note', '')
-            
-            # Format the redirect chain for clear output
-            redirect_chain_list = result.get('redirects', [])
-            had_redirect = bool(redirect_chain_list)
-            # Use 'to_url' which is the correct key from Validator.py
-            redirect_chain_str = " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list])
-
-            # Check if the URL was modified by the validator
-            constructed_url = result.get('url', url)
-            was_constructed = constructed_url != url
-
-            # Combine original row data with validation results
+            # Combine original row data with the prepared validation result
             output_row = row.copy()
-            output_row.update({
-                'is_valid': result.get('valid'),
-                'status_code': result.get('status_code', 'N/A'),
-                'constructed_url': constructed_url if was_constructed else '',
-                'final_url': result.get('final_url', constructed_url),
-                'error_details': result.get('error', ''),
-                'detected_api_type': detected_type,
-                'detection_method': detection_method,
-                'auth_required': result.get('auth_required', 'No'),
-                'is_doc_page': is_doc_page,
-                'had_redirect': had_redirect,
-                'redirect_chain': redirect_chain_str
-            })
+            output_row.update(csv_row)
             results.append(output_row)
 
     # --- Write results to output file ---
@@ -94,6 +67,7 @@ def run_batch_validation():
         'constructed_url',
         'final_url',
         'error_details',
+        'note',
         'detected_api_type',
         'detection_method',
         'auth_required',
@@ -102,13 +76,14 @@ def run_batch_validation():
         'redirect_chain'
     ]
     
-    # Use the ordered list, but ensure any unexpected keys are also included at the end
+    # Use the ordered list, but ensure any unexpected keys from the validator are also included
     all_keys = set(k for r in results for k in r.keys())
     final_fieldnames = ordered_fieldnames + sorted(list(all_keys - set(ordered_fieldnames)))
 
 
     try:
         with open(OUTPUT_CSV, mode='w', newline='', encoding='utf-8') as outfile:
+            # Use extrasaction='ignore' to avoid errors if a row is missing a key from another row
             writer = csv.DictWriter(outfile, fieldnames=final_fieldnames, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(results)
