@@ -41,18 +41,12 @@ def run_batch_validation():
 
             logging.info(f"[{i + 1}/{total_rows}] Validating: {url}")
 
-            # The validator returns a complete dictionary with all data points
+            # The validator now returns a complete, final dictionary
             result = validator.validate_url(url)
 
-            # --- Prepare for CSV Output ---
-            # For CSV output, the flattened 'redirect_chain' string is better than the nested list.
-            # We can remove the 'redirects' list to avoid potential issues with the CSV writer.
-            csv_row = result.copy()
-            csv_row.pop('redirects', None)
-
-            # Combine original row data with the prepared validation result
+            # Combine original row data with the complete validation result
             output_row = row.copy()
-            output_row.update(csv_row)
+            output_row.update(result)
             results.append(output_row)
 
     # --- Write results to output file ---
@@ -61,12 +55,15 @@ def run_batch_validation():
         return
 
     # Define the desired order, including the original fieldnames
+    # These keys MUST match the keys produced by Validator.py
     ordered_fieldnames = fieldnames + [
-        'is_valid',
+        'valid',
         'status_code',
+        'content_type',
+        'expected_content_type',
         'constructed_url',
         'final_url',
-        'error_details',
+        'error',
         'note',
         'detected_api_type',
         'detection_method',
@@ -78,6 +75,9 @@ def run_batch_validation():
     
     # Use the ordered list, but ensure any unexpected keys from the validator are also included
     all_keys = set(k for r in results for k in r.keys())
+    # We remove 'redirects' as it's not CSV-friendly
+    all_keys.discard('redirects')
+
     final_fieldnames = ordered_fieldnames + sorted(list(all_keys - set(ordered_fieldnames)))
 
 
