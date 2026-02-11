@@ -200,7 +200,10 @@ class ServiceValidator:
         final_result['constructed_url'] = constructed_url if constructed_url != url else ''
         final_result['final_url'] = final_url
 
-        final_result['is_doc_page'] = 'likely an API documentation page' in final_result.get('note', '')
+        # This flag is set within _check_specific_http or _check_generic_http
+        # We ensure it's always present
+        if 'is_doc_page' not in final_result:
+            final_result['is_doc_page'] = False
 
         return final_result
 
@@ -230,43 +233,85 @@ class ServiceValidator:
         is_valid = 200 <= response.status_code < 400
         received_mime = response.headers.get('Content-Type', '').lower()
         
+        # --- API Documentation Page Detection (Smart Recovery) ---
+        is_doc_page = False
+        if is_valid and expected_mime and 'application/json' in expected_mime and 'text/html' in received_mime and not is_recovery_attempt:
+            self.logger.info(f"Attempting smart recovery for {final_url}: Expected JSON, got HTML.")
+            response_text_lower = response.text.lower()
+            
+            # Expanded list of keywords for API documentation pages
+            api_doc_keywords = [
+                'swagger-ui', 'id="swagger-ui"', 'rest api', 'api documentation', 'api reference',
+                'developer guide', 'endpoints', 'usage guide', 'how to use', 'getting started',
+                'authentication', 'rate limits', 'data formats', 'query parameters', 'response codes',
+                'error handling', 'sdk', 'client library', 'restful api', 'soap api', 'graphql api',
+                'openapi specification', 'wsdl', 'asyncapi', 'raml', 'api console', 'postman',
+                'curl', 'example request', 'example response'
+            ]
+            
+            if any(keyword in response_text_lower for keyword in api_doc_keywords):
+                is_doc_page = True
+                self.logger.info(f"Detected API documentation page on {final_url}. Marking as valid (content unverified).")
+                return {
+                    "valid": True, "status_code": response.status_code, "content_type": received_mime,
+                    "url": constructed_url, "expected_content_type": expected_mime,
+                    "note": "Received HTML (likely an API documentation page) instead of JSON. Status 200 OK suggests service is active.",
+                    "is_doc_page": True # Explicitly set here
+                }
+        
+        # --- Standard MIME Type Mismatch ---
         if is_valid and expected_mime and not any(t in received_mime for t in expected_mime.split(',')):
-            if 'application/json' in expected_mime and 'text/html' in received_mime and not is_recovery_attempt:
-                self.logger.info(f"Attempting smart recovery for {final_url}: Expected JSON, got HTML.")
-                response_text_lower = response.text.lower()
-                if 'swagger-ui' in response_text_lower or 'id="swagger-ui"' in response_text_lower or 'rest api' in response_text_lower:
-                    return {
-                        "valid": True, "status_code": response.status_code, "content_type": received_mime,
-                        "url": constructed_url, "expected_content_type": expected_mime,
-                        "note": "Received HTML (likely an API documentation page) instead of JSON. Status 200 OK suggests service is active."
-                    }
             is_valid = False
             return {
                 "valid": is_valid, "status_code": response.status_code, "content_type": received_mime,
                 "url": constructed_url, "expected_content_type": expected_mime,
-                "error": f"Invalid Content-Type: expected '{expected_mime}', got '{received_mime}'"
+                "error": f"Invalid Content-Type: expected '{expected_mime}', got '{received_mime}'",
+                "is_doc_page": is_doc_page # Pass the flag even if invalid
             }
 
         return {
             "valid": is_valid, "status_code": response.status_code, "content_type": received_mime,
-            "url": constructed_url, "expected_content_type": expected_mime
+            "url": constructed_url, "expected_content_type": expected_mime,
+            "is_doc_page": is_doc_page # Pass the flag
         }
 
     def _check_generic_http(self, response, final_url):
         is_valid = 200 <= response.status_code < 400
         note = None
+        is_doc_page = False # Default for generic check
 
         if is_valid and 'text/html' in response.headers.get('Content-Type', '').lower():
-            decommissioned_keywords = ['no longer accessible', 'migrated to', 'decommissioned']
-            if any(keyword in response.text.lower() for keyword in decommissioned_keywords):
+            decommissioned_keywords = [
+                'no longer accessible', 'migrated to', 'decommissioned', 'service unavailable',
+                'discontinued', 'retired', 'deprecated', 'shut down', 'end of life',
+                'not available', 'moved to', 'new location'
+            ]
+            response_text_lower = response.text.lower()
+            if any(keyword in response_text_lower for keyword in decommissioned_keywords):
                 is_valid = False
                 note = "Endpoint is a documentation page for a decommissioned/migrated service."
                 self.logger.warning(f"Detected decommissioned service page at {final_url}.")
+            else:
+                # Also check for general API documentation pages in generic HTML responses
+                api_doc_keywords = [
+                    'swagger-ui', 'id="swagger-ui"', 'rest api', 'api documentation', 'api reference',
+                    'developer guide', 'endpoints', 'usage guide', 'how to use', 'getting started',
+                    'authentication', 'rate limits', 'data formats', 'query parameters', 'response codes',
+                    'error handling', 'sdk', 'client library', 'restful api', 'soap api', 'graphql api',
+                    'openapi specification', 'wsdl', 'asyncapi', 'raml', 'api console', 'postman',
+                    'curl', 'example request', 'example response'
+                ]
+                if any(keyword in response_text_lower for keyword in api_doc_keywords):
+                    is_doc_page = True
+                    note = "Received HTML (likely an API documentation page). Status 200 OK suggests service is active."
+                    self.logger.info(f"Detected API documentation page in generic HTML response at {final_url}.")
+
 
         result = {
             "valid": is_valid, "status_code": response.status_code,
             "content_type": response.headers.get('Content-Type', 'unknown').lower(),
-            "url": final_url
+            "url": final_url,
+            "is_doc_page": is_doc_page # Pass the flag
         }
         if note: result["note"] = note
         return result
@@ -276,6 +321,6 @@ class ServiceValidator:
         try:
             with ftplib.FTP(host=parsed.hostname, timeout=self.timeout) as ftp:
                 ftp.login()
-                return {"valid": True, "status_code": 220, "url": url}
+                return {"valid": True, "status_code": 220, "url": url, "is_doc_page": False}
         except Exception as e:
-            return {"valid": False, "error": str(e), "url": url}
+            return {"valid": False, "error": str(e), "url": url, "is_doc_page": False}
