@@ -1,4 +1,0 @@
-repoTitle,serviceTitle,endpoint,valid,status_code,mapped_service_type,content_type,expected_content_type,constructed_url,final_url,error,note,detected_api_type,detection_method,auth_required,is_doc_page,had_redirect,redirect_chain
-Test OAI,OAI-PMH API,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify,True,200,OAI-PMH,text/xml;charset=utf-8,,,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify,,,OAI-PMH,manual_strict,No,False,False,
-Test Fail SPARQL,SPARQL API,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify,False,200,SPARQL,text/xml;charset=utf-8,application/rdf+xml,,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify,"Invalid Content-Type: expected 'application/rdf+xml', got 'text/xml;charset=utf-8'",,SPARQL,manual_strict,No,False,False,
-Test Auto,Unknown API,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify,True,200,N/A,text/xml;charset=utf-8,,,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify,,,OAI-PMH,url_pattern,No,False,False,
