@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="6d54853e-9e6f-43db-bee4-4c3228db8c0f" name="Changes" comment="refactor: Implement auto-detection and enhanced validation logic">
+      <change afterPath="$PROJECT_DIR$/oldValidator.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Validator.py" beforeDir="false" afterPath="$PROJECT_DIR$/Validator.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/batch_validator.py" beforeDir="false" afterPath="$PROJECT_DIR$/batch_validator.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/check_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/check_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/repository services.csv" beforeDir="false" afterPath="$PROJECT_DIR$/repository services.csv" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_C:/Users/jweiser/Documents/EOSC EDEN/WP2/service-validator" value="38yLpTEenFufH25AC4AtSMegcXe" />
+    </persistenceIdMap>
+  </component>
+  <component name="CopilotUserSelectedModel">
+    <selectedModels>
+      <entry key="edit-panel" value="Claude Opus 4.5#(Anthropic)" />
+      <entry key="chat-panel" value="Claude Haiku 4.5" />
+      <entry key="agent-panel" value="Claude Haiku 4.5" />
+    </selectedModels>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="auto-detect" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;weiserjens&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/EOSC-EDEN/service-validator&quot;,
+    &quot;accountId&quot;: &quot;0a3ae8d8-aa6d-47ad-88be-76855e410d7c&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
+  <component name="ProjectId" id="38yLpTEenFufH25AC4AtSMegcXe" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.Validator.executor": "Run",
+    "Python.batch_validator.executor": "Run",
+    "Python.check_service.executor": "Run",
+    "Python.main.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true"
+  }
+}]]></component>
+  <component name="RunManager" selected="Python.check_service">
+    <configuration name="batch_validator" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="service-validator" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/batch_validator.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="check_service" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="service-validator" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/check_service.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="main" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="service-validator" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.check_service" />
+        <item itemvalue="Python.main" />
+        <item itemvalue="Python.batch_validator" />
+        <item itemvalue="Python.check_service" />
+        <item itemvalue="Python.batch_validator" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-07523f343e4f-968fe969f28a-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.28539.27" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="6d54853e-9e6f-43db-bee4-4c3228db8c0f" name="Changes" comment="" />
+      <created>1769767047508</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1769767047508</updated>
+    </task>
+    <task id="LOCAL-00001" summary="inital commit of validator as standalone service">
+      <option name="closed" value="true" />
+      <created>1770276423791</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1770276423791</updated>
+    </task>
+    <task id="LOCAL-00002" summary="improvements to the validation logic and the batch processing output">
+      <option name="closed" value="true" />
+      <created>1770285178215</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1770285178215</updated>
+    </task>
+    <task id="LOCAL-00003" summary="refactored and centralized request logic and improved detection accuracy. harmonized output between batch harvest and CLI output">
+      <option name="closed" value="true" />
+      <created>1770300914839</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1770300914839</updated>
+    </task>
+    <task id="LOCAL-00004" summary="refactor to centralize result shaping and harmonize outputs&#10;Validator now produces a single result dictionary containing all primary and derived fields check_service.py and batch_validator.py have been simplified to act as &quot;runners.&quot; They no longer contain any data manipulation logic.">
+      <option name="closed" value="true" />
+      <created>1770371446177</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1770371446177</updated>
+    </task>
+    <task id="LOCAL-00005" summary="fixed a key-name inconsistency resulting in incomplete output after batch harvest">
+      <option name="closed" value="true" />
+      <created>1770372702899</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1770372702899</updated>
+    </task>
+    <task id="LOCAL-00006" summary="refactor: Implement auto-detection and enhanced validation logic">
+      <option name="closed" value="true" />
+      <created>1770801765143</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1770801765143</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
+    <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="inital commit of validator as standalone service" />
+    <MESSAGE value="improvements to the validation logic and the batch processing output" />
+    <MESSAGE value="refactored and centralized request logic and improved detection accuracy. harmonized output between batch harvest and CLI output" />
+    <MESSAGE value="refactor to centralize result shaping and harmonize outputs&#10;Validator now produces a single result dictionary containing all primary and derived fields check_service.py and batch_validator.py have been simplified to act as &quot;runners.&quot; They no longer contain any data manipulation logic." />
+    <MESSAGE value="fixed a key-name inconsistency resulting in incomplete output after batch harvest" />
+    <MESSAGE value="refactor: Implement auto-detection and enhanced validation logic" />
+    <option name="LAST_COMMIT_MESSAGE" value="refactor: Implement auto-detection and enhanced validation logic" />
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
+  </component>
+</project>

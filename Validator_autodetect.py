@@ -160,11 +160,9 @@ class ServiceValidator:
                 })
         return chain
 
-    def validate_url(self, url, is_recovery_attempt=False, expected_type=None):
+    def validate_url(self, url, is_recovery_attempt=False):
         """
-        Validates a URL.
-        If expected_type is provided, it strictly checks against that type.
-        Otherwise, it attempts automatic API type detection.
+        Validates a URL using automatic API type detection only.
         """
         if not url:
             return {"valid": False, "error": "Empty URL"}
@@ -178,34 +176,13 @@ class ServiceValidator:
             return {"valid": False, "error": str(e), "url": url, "auth_required": auth_required}
 
         final_url = main_response.url
+        detected_type, detection_method = self._detect_api_type_from_response(main_response, final_url)
         
-        detected_type = None
-        detection_method = None
-        
-        if expected_type:
-             # Strict Mode: Use the provided type directly
-            if expected_type in self.protocol_configs:
-                detected_type = expected_type
-                detection_method = 'manual_strict'
-                config = self.protocol_configs.get(detected_type)
-                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt)
-            else:
-                 return {
-                    "valid": False, 
-                    "error": f"Unknown Service Type: '{expected_type}'", 
-                    "url": url, 
-                    "auth_required": auth_required,
-                    "final_url": final_url
-                }
+        config = self.protocol_configs.get(detected_type)
+        if config:
+            core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt)
         else:
-            # Auto-Detect Mode
-            detected_type, detection_method = self._detect_api_type_from_response(main_response, final_url)
-            
-            config = self.protocol_configs.get(detected_type)
-            if config:
-                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt)
-            else:
-                core_result = self._check_generic_http(main_response, final_url)
+            core_result = self._check_generic_http(main_response, final_url)
 
         # --- Assemble the final, complete result dictionary ---
         final_result = core_result.copy()

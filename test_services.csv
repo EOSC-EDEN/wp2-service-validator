@@ -1,0 +1,4 @@
+repoTitle,serviceTitle,endpoint
+Test OAI,OAI-PMH API,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify
+Test Fail SPARQL,SPARQL API,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify
+Test Auto,Unknown API,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify

@@ -11,24 +11,6 @@ OUTPUT_CSV = 'validation_results.csv'
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def _map_service_title_to_type(service_title, available_types):
-    """
-    Maps a service title (e.g., 'OAI-PMH API') to a known Acronym (e.g., 'OAI-PMH').
-    Performs case-insensitive substring matching.
-    """
-    if not service_title:
-        return None
-    
-    title_lower = service_title.lower()
-    
-    # Sort available types by length (descending) to match specific first (e.g. OGC-WMS before OGC)
-    # though here they are mostly distinct.
-    for acr in sorted(available_types, key=len, reverse=True):
-        if acr.lower() in title_lower:
-            return acr
-            
-    return None
-
 def run_batch_validation():
     """Reads service endpoints from a CSV file, validates them, and writes the results to a new CSV.
     """
@@ -37,13 +19,10 @@ def run_batch_validation():
         return
 
     validator = ServiceValidator()
-    available_types = list(validator.protocol_configs.keys())
-    
     results = []
     total_rows = 0
 
     logging.info(f"Starting batch validation for services in '{INPUT_CSV}'...")
-    logging.info(f"Loaded {len(available_types)} service type definition(s).")
 
     with open(INPUT_CSV, mode='r', encoding='utf-8') as infile:
         reader = csv.DictReader(infile)
@@ -55,29 +34,19 @@ def run_batch_validation():
 
         for i, row in enumerate(reader):
             url = row.get('endpoint')
-            
-            # Strict Validation Logic
-            service_title = row.get('serviceTitle', '')
-            expected_type = _map_service_title_to_type(service_title, available_types)
 
             if not url:
                 logging.warning(f"Row {i + 1}: No URL found. Skipping.")
                 continue
 
-            msg = f"[{i + 1}/{total_rows}] Validating: {url}"
-            if expected_type:
-                msg += f" (Strict: {expected_type})"
-            else:
-                msg += f" (Auto-Detect: No matching type for '{service_title}')"
-            logging.info(msg)
+            logging.info(f"[{i + 1}/{total_rows}] Validating: {url}")
 
             # The validator now returns a complete, final dictionary
-            result = validator.validate_url(url, expected_type=expected_type)
+            result = validator.validate_url(url)
 
             # Combine original row data with the complete validation result
             output_row = row.copy()
             output_row.update(result)
-            output_row['mapped_service_type'] = expected_type if expected_type else 'N/A' # Record what we tried
             results.append(output_row)
 
     # --- Write results to output file ---
@@ -87,11 +56,9 @@ def run_batch_validation():
 
     # Define the desired order, including the original fieldnames
     # These keys MUST match the keys produced by Validator.py
-    base_fieldnames = fieldnames if fieldnames else []
-    ordered_fieldnames = base_fieldnames + [
+    ordered_fieldnames = fieldnames + [
         'valid',
         'status_code',
-        'mapped_service_type', # Added this
         'content_type',
         'expected_content_type',
         'constructed_url',
