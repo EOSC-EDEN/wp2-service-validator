@@ -303,6 +303,7 @@ class ServiceValidator:
                     # If the fallback says it's valid (e.g. Doc Page), return that.
                     if fallback_result.get('valid') and fallback_result.get('is_doc_page'):
                         fallback_result['note'] = f"Strict check failed on '{constructed_url}' ({e}), but original URL seems to be a valid documentation page."
+                        fallback_result['failed_url'] = constructed_url
                         return fallback_result
 
                 return {"valid": False, "error": str(e), "url": constructed_url}
@@ -314,6 +315,7 @@ class ServiceValidator:
                 fallback_result = self._check_generic_http(main_response, main_response.url)
                 if fallback_result.get('valid') and fallback_result.get('is_doc_page'):
                     fallback_result['note'] = f"Strict check failed on '{constructed_url}' (Status {response.status_code}), but original URL seems to be a valid documentation page."
+                    fallback_result['failed_url'] = constructed_url
                     return fallback_result
 
         is_valid = 200 <= response.status_code < 400
