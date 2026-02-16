@@ -231,7 +231,7 @@ class ServiceValidator:
                 detected_type = expected_type
                 detection_method = 'manual_strict'
                 config = self.protocol_configs.get(detected_type)
-                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt)
+                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, main_response=main_response)
             else:
                  return {
                     "valid": False, 
@@ -273,7 +273,7 @@ class ServiceValidator:
 
         return final_result
 
-    def _check_specific_http(self, response, final_url, config, api_type, is_recovery_attempt):
+    def _check_specific_http(self, response, final_url, config, api_type, is_recovery_attempt, main_response=None):
         suffix = config['suffix']
         expected_mime = config['accept']
 
@@ -290,16 +290,36 @@ class ServiceValidator:
                 separator = '&' if '?' in final_url else '?'
                 constructed_url = f"{final_url.rstrip('/')}{separator if suffix.startswith('?') else '/'}{suffix.lstrip('?/ ')}"
         
+        request_failed = False
         if constructed_url != final_url:
             try:
                 response = requests.get(constructed_url, headers=self.headers, timeout=self.timeout)
             except requests.RequestException as e:
+                request_failed = True
+                # Fallback: if we have the main_response (initial URL) and it was successful, check if THAT is a doc page.
+                if main_response and 200 <= main_response.status_code < 400:
+                    self.logger.info(f"Strict check failed for {constructed_url}. Falling back to check original URL {main_response.url} for documentation.")
+                    fallback_result = self._check_generic_http(main_response, main_response.url)
+                    # If the fallback says it's valid (e.g. Doc Page), return that.
+                    if fallback_result.get('valid') and fallback_result.get('is_doc_page'):
+                        fallback_result['note'] = f"Strict check failed on '{constructed_url}' ({e}), but original URL seems to be a valid documentation page."
+                        return fallback_result
+
                 return {"valid": False, "error": str(e), "url": constructed_url}
         
+        # If status code indicates failure (e.g. 404, 500), try fallback to main_response
+        if not (200 <= response.status_code < 400):
+             if main_response and 200 <= main_response.status_code < 400:
+                self.logger.info(f"Strict check returned {response.status_code} for {constructed_url}. Falling back to check original URL {main_response.url} for documentation.")
+                fallback_result = self._check_generic_http(main_response, main_response.url)
+                if fallback_result.get('valid') and fallback_result.get('is_doc_page'):
+                    fallback_result['note'] = f"Strict check failed on '{constructed_url}' (Status {response.status_code}), but original URL seems to be a valid documentation page."
+                    return fallback_result
+
         is_valid = 200 <= response.status_code < 400
         received_mime = response.headers.get('Content-Type', '').lower()
         
-        # --- API Documentation Page Detection (Smart Recovery) ---
+        # --- API Documentation Page Detection (Smart Recovery) for the Constructed/Final URL ---
         is_doc_page = False
         if is_valid and expected_mime and 'application/json' in expected_mime and 'text/html' in received_mime and not is_recovery_attempt:
             self.logger.info(f"Attempting smart recovery for {final_url}: Expected JSON, got HTML.")
@@ -312,7 +332,7 @@ class ServiceValidator:
                 'authentication', 'rate limits', 'data formats', 'query parameters', 'response codes',
                 'error handling', 'sdk', 'client library', 'restful api', 'soap api', 'graphql api',
                 'openapi specification', 'wsdl', 'asyncapi', 'raml', 'api console', 'postman',
-                'curl', 'example request', 'example response'
+                'curl', 'example request', 'example response', 'netcdf', 'opendap', 'data access'
             ]
             
             if any(keyword in response_text_lower for keyword in api_doc_keywords):
@@ -365,7 +385,7 @@ class ServiceValidator:
                     'authentication', 'rate limits', 'data formats', 'query parameters', 'response codes',
                     'error handling', 'sdk', 'client library', 'restful api', 'soap api', 'graphql api',
                     'openapi specification', 'wsdl', 'asyncapi', 'raml', 'api console', 'postman',
-                    'curl', 'example request', 'example response'
+                    'curl', 'example request', 'example response', 'netcdf', 'opendap', 'data access'
                 ]
                 if any(keyword in response_text_lower for keyword in api_doc_keywords):
                     is_doc_page = True
