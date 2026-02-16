@@ -11,24 +11,6 @@ OUTPUT_CSV = 'validation_results.csv'
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def _map_service_title_to_type(service_title, available_types):
-    """
-    Maps a service title (e.g., 'OAI-PMH API') to a known Acronym (e.g., 'OAI-PMH').
-    Performs case-insensitive substring matching.
-    """
-    if not service_title:
-        return None
-    
-    title_lower = service_title.lower()
-    
-    # Sort available types by length (descending) to match specific first (e.g. OGC-WMS before OGC)
-    # though here they are mostly distinct.
-    for acr in sorted(available_types, key=len, reverse=True):
-        if acr.lower() in title_lower:
-            return acr
-            
-    return None
-
 def run_batch_validation():
     """Reads service endpoints from a CSV file, validates them, and writes the results to a new CSV.
     """
@@ -58,20 +40,33 @@ def run_batch_validation():
             
             # Strict Validation Logic
             service_title = row.get('serviceTitle', '')
-            expected_type = _map_service_title_to_type(service_title, available_types)
+            # Use the shared static method for mapping
+            expected_type = ServiceValidator.map_service_type(service_title, available_types)
 
             if not url:
                 logging.warning(f"Row {i + 1}: No URL found. Skipping.")
                 continue
 
-            msg = f"[{i + 1}/{total_rows}] Validating: {url}"
-            if expected_type:
-                msg += f" (Strict: {expected_type})"
-            else:
-                msg += f" (Auto-Detect: No matching type for '{service_title}')"
+            msg = f"[{i + 1}/{total_rows}] Validating: {url} (Strict: {expected_type})"
             logging.info(msg)
 
-            # The validator now returns a complete, final dictionary
+            if not expected_type:
+                 # Strict Mode Enforcement: Cannot proceed without a known type
+                logging.warning(f"Row {i + 1}: Skipping '{url}' - Unknown Service Type for '{service_title}'")
+                output_row = row.copy()
+                output_row.update({
+                    "valid": False, 
+                    "error": f"Unknown/Unmapped Service Title: '{service_title}'",
+                    "mapped_service_type": "N/A"
+                })
+                # Add empty placeholders for other fields to match CSV structure?
+                # Actually, validate_url returns a structure. Let's call it and let it error?
+                # The validator now returns an error dict if expected_type is None.
+                # So we can just call it with None and let it handle the error return.
+                pass 
+
+            # The validator now returns a complete, final dictionary.
+            # If expected_type is None, it will return the "Strict Mode Required" error.
             result = validator.validate_url(url, expected_type=expected_type)
 
             # Combine original row data with the complete validation result

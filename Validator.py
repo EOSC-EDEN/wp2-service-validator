@@ -33,13 +33,56 @@ class ServiceValidator:
                 for row in reader:
                     api_type = row.get('Acronym')
                     if api_type and api_type.strip():
-                        mappings[api_type] = {
-                            'suffix': row.get('default query', ''),
-                            'accept': row.get('accept', '')
+                        suffix = row.get('default query', '')
+                        accept = row.get('accept', '')
+                        
+                        current_config = {
+                            'suffix': suffix,
+                            'accept': accept
                         }
+                        
+                        if api_type not in mappings:
+                            mappings[api_type] = current_config
+                        else:
+                            # Conflict resolution for duplicate Acronyms:
+                            # 1. Prefer entries with an 'accept' header.
+                            # 2. If neither has 'accept', prefer entries with a non-empty 'suffix'.
+                            existing = mappings[api_type]
+                            
+                            if accept:
+                                # New entry has accept header -> Overwrite (upgrade or replace)
+                                mappings[api_type] = current_config
+                            elif existing['accept']:
+                                # Existing has accept, new one doesn't -> Keep existing
+                                pass
+                            elif suffix:
+                                # Neither has accept, but new one has suffix -> Overwrite (upgrade)
+                                mappings[api_type] = current_config
+                            else:
+                                # New one has neither -> Keep existing
+                                pass
+
         except FileNotFoundError:
             self.logger.error(f"Fatal: Service mapping file not found at {csv_path}")
         return mappings
+
+    @staticmethod
+    def map_service_type(service_title, available_types):
+        """
+        Maps a service title (e.g., 'SWORD API', 'RSS Feed') to a known Acronym (e.g., 'SWORD', 'RSS').
+        Performs case-insensitive substring matching.
+        """
+        if not service_title:
+            return None
+        
+        title_lower = service_title.lower()
+        
+        # Sort available types by length (descending) to match specific first (e.g. OGC-WMS before OGC)
+        for acr in sorted(available_types, key=len, reverse=True):
+            if acr.lower() in title_lower:
+                return acr
+                
+        return None
 
     def _detect_api_type_from_response(self, response, final_url):
         """
@@ -198,20 +241,20 @@ class ServiceValidator:
                     "final_url": final_url
                 }
         else:
-            # Auto-Detect Mode
-            detected_type, detection_method = self._detect_api_type_from_response(main_response, final_url)
-            
-            config = self.protocol_configs.get(detected_type)
-            if config:
-                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt)
-            else:
-                core_result = self._check_generic_http(main_response, final_url)
+            # Enforce Strict Validation: No Auto-Detection Fallback
+            return {
+                "valid": False,
+                "error": "Strict Mode Required: No expected service type provided.",
+                "url": url,
+                "auth_required": auth_required,
+                "final_url": final_url
+            }
 
         # --- Assemble the final, complete result dictionary ---
         final_result = core_result.copy()
         
-        final_result['detected_api_type'] = detected_type if detected_type else 'N/A'
-        final_result['detection_method'] = detection_method if detection_method else 'N/A'
+        # final_result['detected_api_type'] = detected_type if detected_type else 'N/A'
+        # final_result['detection_method'] = detection_method if detection_method else 'N/A'
         final_result['auth_required'] = auth_required
 
         redirect_chain_list = self._build_redirect_chain_info(main_response)
