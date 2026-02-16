@@ -13,18 +13,19 @@ validator = ServiceValidator()
 
 @app.get("/validate", summary="Validate a single service endpoint")
 def validate_endpoint(
-    url: str = Query(..., description="The full URL of the endpoint to validate.")
+    url: str = Query(..., description="The full URL of the endpoint to validate."),
+    type: str = Query(None, description="The expected service type (e.g., OAI-PMH, NetCDF). Required for strict validation.")
 ):
     """
-    Validates a single service endpoint URL.
+    Validates a single service endpoint URL against a specific Service Type.
 
     - **url**: The URL of the service to check.
+    - **type**: The expected Service Type. Ideally provided by the user.
 
-    The system will automatically attempt to detect the API type from the URL structure,
-    response headers, and content.
+    The system performs a strict validation based on the provided type.
     """
-    # Auto-detection only, no user-provided api_type
-    result = validator.validate_url(url)
+    # Pass the type to the validator (Validator now enforces strict mode if type is missing)
+    result = validator.validate_url(url, expected_type=type)
     return result
 
 if __name__ == "__main__":

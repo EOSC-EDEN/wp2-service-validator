@@ -9,8 +9,8 @@ It provides three modes of operation:
 
 ## Features
 
-*   **Auto-Detection:** Automatically identifies API types (OAI-PMH, OpenAPI, OGC-WMS/CSW, SPARQL, etc.) from the URL structure, response headers, and body content.
-*   **Smart Recovery:** Handles cases where an API returns an HTML documentation page (e.g., Swagger UI) instead of the expected machine-readable format, marking them as valid with a note.
+*   **Strict Validation:** Validates service endpoints against a specific, user-provided Service Type (e.g., OAI-PMH, OpenAPI, NetCDF).
+*   **Documentation Fallback:** If a strict service check fails (e.g., 404), the validator automatically checks if the original URL is a valid documentation page (Smart Recovery).
 *   **Configurable Rules:** Validation rules (default queries, expected MIME types) are defined in `services_default_queries.csv`.
 
 ## Installation
@@ -32,15 +32,17 @@ python main.py
 ```
 *   The server will start at `http://127.0.0.1:8000`.
 *   **Interactive Docs:** Open `http://127.0.0.1:8000/docs` to test the API in your browser.
+*   **Example Request:** `GET /validate?url=https://example.com/oai&type=OAI-PMH`
 
 ### 2. Single URL Check (CLI)
 
 Check a specific URL directly from the terminal.
 
 ```bash
-python check_service.py --url "https://example.com/oai"
+python check_service.py --url "https://example.com/oai" --type OAI-PMH
 ```
-*   If you run it without arguments, it will prompt you for the URL interactively.
+*   You must provide the expected Service Type via `--type`.
+*   If you run it without arguments, it will prompt you for the URL and Type interactively.
 
 ### 3. Batch Validation
 
