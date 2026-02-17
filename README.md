@@ -1,6 +1,6 @@
 # EDEN Service Validator
 
-This tool validates repository service endpoints (e.g., OAI-PMH, OpenAPI, REST, SPARQL, OGC services) by automatically detecting their type and checking their availability and compliance with expected content types.
+This tool validates repository service endpoints (e.g., OAI-PMH, OpenAPI, REST, SPARQL, OGC services) by checking their availability and compliance with expected content types.
 
 It provides three modes of operation:
 1.  **Web Service (FastAPI):** A REST API to validate URLs on demand.
@@ -12,6 +12,8 @@ It provides three modes of operation:
 *   **Strict Validation:** Validates service endpoints against a specific, user-provided Service Type (e.g., OAI-PMH, OpenAPI, NetCDF).
 *   **Documentation Fallback:** If a strict service check fails (e.g., 404), the validator automatically checks if the original URL is a valid documentation page (Smart Recovery).
 *   **Configurable Rules:** Validation rules (default queries, expected MIME types) are defined in `services_default_queries.csv`.
+
+*   **Optional Auto-Detection** Checkout https://github.com/EOSC-EDEN/wp2-service-validator/tree/auto-detect to try out auto-detextion of the servive type. Highly unreliable at this point.
 
 ## Installation
 
