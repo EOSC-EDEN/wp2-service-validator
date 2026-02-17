@@ -1,9 +1,6 @@
 import requests
-import ftplib
-from urllib.parse import urlparse, urljoin
 import os
 import csv
-from lxml import html
 import logging
 import json
 
@@ -84,98 +81,7 @@ class ServiceValidator:
                 
         return None
 
-    def _detect_api_type_from_response(self, response, final_url):
-        """
-        Multi-stage detection. Returns a tuple: (detected_type, detection_method)
-        """
-        # Stage 1: URL patterns (using the final_url)
-        detected = self._detect_from_url_patterns(final_url)
-        if detected:
-            self.logger.info(f"API type '{detected}' detected from final URL patterns.")
-            return detected, 'url_pattern'
 
-        # Stage 2: Response headers
-        detected = self._detect_api_type_from_headers(response)
-        if detected:
-            self.logger.info(f"API type '{detected}' detected from response headers.")
-            return detected, 'headers'
-
-        # Stage 3: Response body content
-        detected = self._sniff_api_type_from_body(response)
-        if detected:
-            self.logger.info(f"API type '{detected}' detected from response body content.")
-            return detected, 'body_sniffing'
-
-        self.logger.info("No API type detected through any method.")
-        return None, None
-
-    def _detect_from_url_patterns(self, url):
-        """
-        Stage 1: Fast pattern matching based on URL structure.
-        """
-        url_lower = url.lower()
-        if 'oai' in url_lower and ('verb=' in url_lower or url_lower.endswith('/oai') or '/oai/' in url_lower):
-            return 'OAI-PMH'
-        if 'service=csw' in url_lower and 'request=getcapabilities' in url_lower:
-            return 'OGC-CSW'
-
-        if 'service=wms' in url_lower and 'request=getcapabilities' in url_lower:
-            return 'OGC-WMS'
-
-        if '/sparql' in url_lower:
-            return 'SPARQL'
-
-        if '/swagger' in url_lower or '/openapi' in url_lower:
-            return 'OpenAPI'
-
-        if '/api/' in url_lower or '/rest_api' in url_lower:
-            return 'REST'
-
-        if url_lower.endswith(('.rss', '.xml')):
-            return 'RSS'
-
-        if url_lower.endswith('/atom') or url_lower.endswith('/atom.xml'):
-            return 'ATOM'
-
-        return None
-
-    def _detect_api_type_from_headers(self, response):
-        """
-        Stage 2: Analyze response headers from a requests.Response object.
-        """
-        content_type = response.headers.get('Content-Type', '').lower()
-        if 'application/xml' in content_type or 'text/xml' in content_type: return 'OAI-PMH'
-        if 'rdf+xml' in content_type or 'ld+json' in content_type: return 'SPARQL'
-        if 'application/json' in content_type: return 'REST'
-        if 'application/rss+xml' in content_type: return 'RSS'
-        if 'application/atom+xml' in content_type: return 'ATOM'
-        return None
-
-    def _sniff_api_type_from_body(self, response):
-        """
-        Stage 3: Inspect response body for distinctive patterns and markers.
-        """
-        try:
-            # Only read a portion of the text to avoid memory issues with large responses
-            text = response.text[:5000].lower()
-
-            self.logger.debug(f"Body sniffing for {response.url}: checking content patterns...")
-
-            patterns = {
-                'OAI-PMH': ['<oai-pmh>', 'oai:identifier'],
-                'SPARQL': ['<rdf:rdf', 'sparql'],
-                'OpenAPI': ['"openapi"'],
-                'RSS': ['<rss', '<channel'],
-                'ATOM': ['<feed', 'xmlns="http://www.w3.org/2005/atom"']
-            }
-            for api_type, markers in patterns.items():
-                if any(marker in text for marker in markers):
-                    return api_type
-            return None
-
-        except Exception as e: # Catch any error during text processing
-            self.logger.debug(f"Error during body sniffing for {response.url}: {e}")
-            return None
 
     def _check_auth_requirement(self, url):
         """
@@ -404,11 +310,3 @@ class ServiceValidator:
         if note: result["note"] = note
         return result
 
-    def _check_ftp(self, url):
-        parsed = urlparse(url)
-        try:
-            with ftplib.FTP(host=parsed.hostname, timeout=self.timeout) as ftp:
-                ftp.login()
-                return {"valid": True, "status_code": 220, "url": url, "is_doc_page": False}
-        except Exception as e:
-            return {"valid": False, "error": str(e), "url": url, "is_doc_page": False}
