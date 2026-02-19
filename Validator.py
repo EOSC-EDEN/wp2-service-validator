@@ -17,6 +17,7 @@ class ServiceValidator:
         self.timeout = timeout
         self.headers = {
             'User-Agent': 'EDEN-Endpoint-Validator/1.0'
+                          'Accept': '*.*',  # initially accept any header
         }
         self.protocol_configs = self._load_service_mappings()
         self._load_validation_config()
@@ -24,7 +25,7 @@ class ServiceValidator:
     def _load_validation_config(self):
         """Loads validation keywords from a JSON configuration file."""
         config_path = os.path.join(os.path.dirname(__file__), 'validation_config.json')
-        
+
         self.api_doc_keywords = []
         self.decommissioned_keywords = []
 
@@ -100,6 +101,8 @@ class ServiceValidator:
                 
         return None
 
+
+
     def _check_auth_requirement(self, url):
         """
         Checks if the endpoint requires authentication for the *initial* URL.
@@ -126,34 +129,131 @@ class ServiceValidator:
                 })
         return chain
 
+    def _is_strict_content_match(self, response, expected_type, config):
+        """
+        Checks if the response strictly matches the expected service type.
+        Criteria:
+        1. Content-Type matches the config's 'accept' list.
+        2. Body contains specific signatures/keywords for the type.
+        Returns True if either condition is met (relaxed strictness).
+        """
+        received_mime = response.headers.get('Content-Type', '').lower()
+        expected_mime = config.get('accept', '').lower()
+
+        # 1. Check Content-Type
+        ct_match = False
+        if expected_mime:
+            # expected_mime might be "application/xml, text/xml"
+            # We check if ANY of the expected types are present in the received mime
+            if any(t.strip() in received_mime for t in expected_mime.split(',')):
+                ct_match = True
+            else:
+                 self.logger.debug(f"Strict Content-Type match failed: '{received_mime}' != '{expected_mime}'")
+
+        # 2. Check Body Patterns (Bonus Confirmation or Fallback)
+        body_match = False
+        text = response.text[:5000].lower()
+
+        patterns = {
+            'OAI-PMH': ['<oai-pmh', 'xmlns:oai', 'oai:identifier', '<oai_dc:dc', 'xmlns:oai_dc'],
+            'SPARQL': ['<rdf:rdf', 'sparql-results'],
+            'OpenAPI': ['"openapi"', 'swagger', '"paths":'],
+            'RSS': ['<rss', '<channel'],
+            'ATOM': ['<feed', 'xmlns="http://www.w3.org/2005/atom"'],
+            'OGC-WMS': ['wms_capabilities', 'service="wms"'],
+            'OGC-CSW': ['csw:capabilities', 'service="csw"']
+        }
+
+        type_patterns = patterns.get(expected_type, [])
+        if type_patterns:
+            if any(p in text for p in type_patterns):
+                body_match = True
+                self.logger.info(f"Strict match confirmed via body signature for '{expected_type}'.")
+            else:
+                self.logger.debug(f"Body signature match failed for '{expected_type}'.")
+
+        # Validation Logic:
+        # If body matches, we trust it (overriding potential CT mismatch).
+        if body_match:
+            return True
+
+        # If CT matches and we didn't explicitly fail a body check (or didn't check), trust CT.
+        # But if we checked body and it failed, should we still trust CT?
+        # User said "as long as one of them is successful".
+        # So yes, trust CT if it matches.
+        if ct_match:
+            return True
+
+        return False
+
     def validate_url(self, url, is_recovery_attempt=False, expected_type=None):
         """
-        Validates a URL.
-        If expected_type is provided, it strictly checks against that type.
-        Otherwise, it attempts automatic API type detection.
+        Validates a URL with strict type checking logic:
+        1. Initial Check: Request original URL with type-specific Accept header.
+           - If strictly matches (Status 200 + Content-Type + Body Pattern) -> VALID.
+        2. Fallback: If initial check fails, try constructing service URL (Magic).
+        3. Documentation Fallback: If all else fails, check for documentation page.
         """
         if not url:
             return {"valid": False, "error": "Empty URL"}
 
-        # 1. Check auth requirement for the *initial* URL (without following redirects)
+        # 1. Check auth requirement for the *initial* URL
         auth_required = self._check_auth_requirement(url)
 
+        # Prepare Headers with specific Accept if expected_type is provided
+        current_headers = self.headers.copy()
+        config = None
+        if expected_type and expected_type in self.protocol_configs:
+             config = self.protocol_configs.get(expected_type)
+             # Construct Accept header with q-values
+             # e.g., "application/xml;q=1.0, text/html;q=0.9, */*;q=0.8"
+             specific_accept = config.get('accept')
+             if specific_accept:
+                 # Ensure we have a valid mime type str
+                 current_headers['Accept'] = f"{specific_accept};q=1.0, text/html;q=0.9, */*;q=0.8"
+
         try:
-            main_response = requests.get(url, headers=self.headers, timeout=self.timeout, allow_redirects=True)
+            main_response = requests.get(url, headers=current_headers, timeout=self.timeout, allow_redirects=True)
         except requests.RequestException as e:
             return {"valid": False, "error": str(e), "url": url, "auth_required": auth_required}
 
         final_url = main_response.url
         
         detected_type = None
-        detection_method = None
-        
+
         if expected_type:
-             # Strict Mode: Use the provided type directly
+             # Strict Mode Flow
             if expected_type in self.protocol_configs:
                 detected_type = expected_type
-                detection_method = 'manual_strict'
                 config = self.protocol_configs.get(detected_type)
+
+                # --- Step 1: Strict Initial Check ---
+                # Check if the repository is already giving us what we want on the base URL
+                if 200 <= main_response.status_code < 400:
+                    if self._is_strict_content_match(main_response, expected_type, config):
+                        self.logger.info(f"Initial URL '{final_url}' strictly matches expected type '{expected_type}'. Skipping construction logic.")
+
+                        redirect_chain_list = self._build_redirect_chain_info(main_response)
+
+                        return {
+                            "valid": True,
+                            "status_code": main_response.status_code,
+                            "content_type": main_response.headers.get('Content-Type', '').lower(),
+                            "url": url, # Original URL was valid
+                            "final_url": final_url,
+                            "constructed_url": '', # No construction needed
+                            "expected_content_type": config.get('accept'),
+                            "auth_required": auth_required,
+                            "note": "Initial URL validation successful.",
+                            "redirects": redirect_chain_list,
+                            "had_redirect": bool(redirect_chain_list),
+                            "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list]),
+                            "is_doc_page": False
+                        }
+
+                # --- Step 2: "Magic" / Construction Fallback ---
+                # If initial check didn't satisfy strict requirements, try constructing the specific service URL
+                self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
                 core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, main_response=main_response)
             else:
                  return {
@@ -175,9 +275,7 @@ class ServiceValidator:
 
         # --- Assemble the final, complete result dictionary ---
         final_result = core_result.copy()
-        
-        # final_result['detected_api_type'] = detected_type if detected_type else 'N/A'
-        # final_result['detection_method'] = detection_method if detection_method else 'N/A'
+
         final_result['auth_required'] = auth_required
 
         redirect_chain_list = self._build_redirect_chain_info(main_response)
@@ -185,12 +283,18 @@ class ServiceValidator:
         final_result['had_redirect'] = bool(redirect_chain_list)
         final_result['redirect_chain'] = " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list])
 
-        constructed_url = final_result.pop('url', url) # Pop ambiguous 'url' key
-        final_result['constructed_url'] = constructed_url if constructed_url != url else ''
+        # Handle URL keys for consistent output
+        constructed_url = final_result.get('url', '')
+        # If the core_result didn't set 'url' specifically (it does usually), or if it set it to constructed
+        final_result['constructed_url'] = constructed_url if constructed_url and constructed_url != final_url else ''
         final_result['final_url'] = final_url
 
-        # This flag is set within _check_specific_http or _check_generic_http
-        # We ensure it's always present
+        # Ensure 'url' in final output matches the logic we want (usually the one that was validated)
+        # But for the CSV output we check 'constructed_url' and 'final_url'.
+        # Let's ensure 'url' key is consistent or removed if confusing.
+        # But 'check_service.py' might rely on 'url'.
+        # Actually, let's keep 'url' as the "Validated URL" (endpoint).
+
         if 'is_doc_page' not in final_result:
             final_result['is_doc_page'] = False
 
@@ -220,7 +324,7 @@ class ServiceValidator:
         separator = '&' if '?' in base_url else '?'
         # If suffix starts with '?', we use the separator logic.
         # If suffix starts with '/', we append it directly (handling double slashes).
-        
+
         if suffix.startswith('?'):
              return f"{base_url.rstrip('/')}{separator}{suffix.lstrip('?')}"
         elif suffix.startswith('/'):
@@ -276,11 +380,11 @@ class ServiceValidator:
             
             if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
                 is_doc_page = True
-                self.logger.info(f"Detected API documentation page on {final_url}. Marking as valid (content unverified).")
+                self.logger.info(f"Detected API documentation page on {final_url}. Marking as INVALID (Documentation Page).")
                 return {
-                    "valid": True, "status_code": response.status_code, "content_type": received_mime,
+                    "valid": False, "status_code": response.status_code, "content_type": received_mime,
                     "url": constructed_url, "expected_content_type": expected_mime,
-                    "note": "Received HTML (likely an API documentation page) instead of JSON. Status 200 OK suggests service is active.",
+                    "note": "Invalid endpoint: Received HTML (API documentation page) instead of JSON. Status 200 OK suggests service is likely active but URL is not a direct service endpoint.",
                     "is_doc_page": True # Explicitly set here
                 }
         
@@ -315,7 +419,8 @@ class ServiceValidator:
                 # Also check for general API documentation pages in generic HTML responses
                 if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
                     is_doc_page = True
-                    note = "Received HTML (likely an API documentation page). Status 200 OK suggests service is active."
+                    is_valid = False # Mark as invalid because it's a doc page, not a service endpoint
+                    note = "Invalid endpoint: Received HTML (API documentation page). Status 200 OK suggests service is likely active."
                     self.logger.info(f"Detected API documentation page in generic HTML response at {final_url}.")
 
 
@@ -327,3 +432,4 @@ class ServiceValidator:
         }
         if note: result["note"] = note
         return result
+
