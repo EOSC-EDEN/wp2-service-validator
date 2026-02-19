@@ -19,6 +19,25 @@ class ServiceValidator:
             'User-Agent': 'EDEN-Endpoint-Validator/1.0'
         }
         self.protocol_configs = self._load_service_mappings()
+        self._load_validation_config()
+
+    def _load_validation_config(self):
+        """Loads validation keywords from a JSON configuration file."""
+        config_path = os.path.join(os.path.dirname(__file__), 'validation_config.json')
+        
+        self.api_doc_keywords = []
+        self.decommissioned_keywords = []
+
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                self.api_doc_keywords = config.get('api_doc_keywords', [])
+                self.decommissioned_keywords = config.get('decommissioned_keywords', [])
+                self.logger.info(f"Loaded validation configuration from {config_path}")
+        except FileNotFoundError:
+            self.logger.error(f"Fatal: Validation config file not found at {config_path}. Keyword detection will be disabled.")
+        except json.JSONDecodeError:
+            self.logger.error(f"Fatal: Error parsing {config_path}. Keyword detection will be disabled.")
 
     def _load_service_mappings(self):
         """Loads the service mappings from the CSV file."""
@@ -80,8 +99,6 @@ class ServiceValidator:
                 return acr
                 
         return None
-
-
 
     def _check_auth_requirement(self, url):
         """
@@ -179,22 +196,46 @@ class ServiceValidator:
 
         return final_result
 
+    def _construct_probe_url(self, base_url, suffix):
+        """
+        Constructs the probe URL by appending the suffix to the base URL.
+        Handles query parameters and path separators a little better.
+        """
+        if not suffix:
+            return base_url
+
+        if '{endpointURI}' in suffix:
+            suffix = suffix.replace('{endpointURI}', '')
+
+        # If suffix is empty after replacement, return base_url
+        if not suffix:
+            return base_url
+
+        # Special cases where we don't append
+        if 'verb=' in suffix and 'verb=' in base_url:
+            return base_url
+        if base_url.lower().endswith(('.html', '.htm', '.php', '.jsp', '.aspx')) and suffix.startswith('/'):
+            return base_url
+
+        separator = '&' if '?' in base_url else '?'
+        # If suffix starts with '?', we use the separator logic.
+        # If suffix starts with '/', we append it directly (handling double slashes).
+        
+        if suffix.startswith('?'):
+             return f"{base_url.rstrip('/')}{separator}{suffix.lstrip('?')}"
+        elif suffix.startswith('/'):
+             return f"{base_url.rstrip('/')}/{suffix.lstrip('/')}"
+        else:
+             # Default case: assume it's a query param or path segment depending on context
+             # The original logic was: constructed_url = f"{final_url.rstrip('/')}{separator if suffix.startswith('?') else '/'}{suffix.lstrip('?/ ')}"
+             # Let's replicate that logic but cleaner
+             return f"{base_url.rstrip('/')}{separator if suffix.startswith('?') else '/'}{suffix.lstrip('?/ ')}"
+
     def _check_specific_http(self, response, final_url, config, api_type, is_recovery_attempt, main_response=None):
         suffix = config['suffix']
         expected_mime = config['accept']
 
-        if suffix and '{endpointURI}' in suffix:
-            suffix = suffix.replace('{endpointURI}', '')
-
-        constructed_url = final_url
-        if suffix:
-            if 'verb=' in suffix and 'verb=' in final_url:
-                pass
-            elif final_url.lower().endswith(('.html', '.htm', '.php', '.jsp', '.aspx')) and suffix.startswith('/'):
-                pass
-            else:
-                separator = '&' if '?' in final_url else '?'
-                constructed_url = f"{final_url.rstrip('/')}{separator if suffix.startswith('?') else '/'}{suffix.lstrip('?/ ')}"
+        constructed_url = self._construct_probe_url(final_url, suffix)
         
         request_failed = False
         if constructed_url != final_url:
@@ -233,17 +274,7 @@ class ServiceValidator:
             self.logger.info(f"Attempting smart recovery for {final_url}: Expected JSON, got HTML.")
             response_text_lower = response.text.lower()
             
-            # Expanded list of keywords for API documentation pages
-            api_doc_keywords = [
-                'swagger-ui', 'id="swagger-ui"', 'rest api', 'api documentation', 'api reference',
-                'developer guide', 'endpoints', 'usage guide', 'how to use', 'getting started',
-                'authentication', 'rate limits', 'data formats', 'query parameters', 'response codes',
-                'error handling', 'sdk', 'client library', 'restful api', 'soap api', 'graphql api',
-                'openapi specification', 'wsdl', 'asyncapi', 'raml', 'api console', 'postman',
-                'curl', 'example request', 'example response', 'netcdf', 'opendap', 'data access'
-            ]
-            
-            if any(keyword in response_text_lower for keyword in api_doc_keywords):
+            if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
                 is_doc_page = True
                 self.logger.info(f"Detected API documentation page on {final_url}. Marking as valid (content unverified).")
                 return {
@@ -275,27 +306,14 @@ class ServiceValidator:
         is_doc_page = False # Default for generic check
 
         if is_valid and 'text/html' in response.headers.get('Content-Type', '').lower():
-            decommissioned_keywords = [
-                'no longer accessible', 'migrated to', 'decommissioned', 'service unavailable',
-                'discontinued', 'retired', 'deprecated', 'shut down', 'end of life',
-                'not available', 'moved to', 'new location'
-            ]
             response_text_lower = response.text.lower()
-            if any(keyword in response_text_lower for keyword in decommissioned_keywords):
+            if any(keyword in response_text_lower for keyword in self.decommissioned_keywords):
                 is_valid = False
                 note = "Endpoint is a documentation page for a decommissioned/migrated service."
                 self.logger.warning(f"Detected decommissioned service page at {final_url}.")
             else:
                 # Also check for general API documentation pages in generic HTML responses
-                api_doc_keywords = [
-                    'swagger-ui', 'id="swagger-ui"', 'rest api', 'api documentation', 'api reference',
-                    'developer guide', 'endpoints', 'usage guide', 'how to use', 'getting started',
-                    'authentication', 'rate limits', 'data formats', 'query parameters', 'response codes',
-                    'error handling', 'sdk', 'client library', 'restful api', 'soap api', 'graphql api',
-                    'openapi specification', 'wsdl', 'asyncapi', 'raml', 'api console', 'postman',
-                    'curl', 'example request', 'example response', 'netcdf', 'opendap', 'data access'
-                ]
-                if any(keyword in response_text_lower for keyword in api_doc_keywords):
+                if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
                     is_doc_page = True
                     note = "Received HTML (likely an API documentation page). Status 200 OK suggests service is active."
                     self.logger.info(f"Detected API documentation page in generic HTML response at {final_url}.")
@@ -309,4 +327,3 @@ class ServiceValidator:
         }
         if note: result["note"] = note
         return result
-
