@@ -16,7 +16,7 @@ class ServiceValidator:
     def __init__(self, timeout=10):
         self.timeout = timeout
         self.headers = {
-            'User-Agent': 'EDEN-Endpoint-Validator/1.0'
+            'User-Agent': 'EDEN-Endpoint-Validator/1.0',
                           'Accept': '*.*',  # initially accept any header
         }
         self.protocol_configs = self._load_service_mappings()
