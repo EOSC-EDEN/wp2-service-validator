@@ -27,14 +27,26 @@ def run_batch_validation():
     logging.info(f"Starting batch validation for services in '{INPUT_CSV}'...")
     logging.info(f"Loaded {len(available_types)} service type definition(s).")
 
+    # Detect delimiter or force semicolon based on user report
+    delimiter = ';' 
+
     with open(INPUT_CSV, mode='r', encoding='utf-8') as infile:
-        reader = csv.DictReader(infile)
+        reader = csv.DictReader(infile, delimiter=delimiter)
         fieldnames = reader.fieldnames
 
         # Count total rows for progress indication
-        with open(INPUT_CSV, mode='r', encoding='utf-8') as f:
-            total_rows = sum(1 for row in f) - 1  # Subtract header
+        # We need to re-open or seek, but since we are iterating reader above, let's just read all rows into list first?
+        # Or just re-open for counting.
+        pass
 
+    # Re-open to process
+    with open(INPUT_CSV, mode='r', encoding='utf-8') as infile:
+        # Count lines first
+        total_rows = sum(1 for _ in infile) - 1
+        infile.seek(0)
+        
+        reader = csv.DictReader(infile, delimiter=delimiter)
+        
         for i, row in enumerate(reader):
             url = row.get('endpoint')
             
@@ -111,7 +123,7 @@ def run_batch_validation():
     try:
         with open(OUTPUT_CSV, mode='w', newline='', encoding='utf-8') as outfile:
             # Use extrasaction='ignore' to avoid errors if a row is missing a key from another row
-            writer = csv.DictWriter(outfile, fieldnames=final_fieldnames, extrasaction='ignore')
+            writer = csv.DictWriter(outfile, fieldnames=final_fieldnames, extrasaction='ignore', delimiter=delimiter)
             writer.writeheader()
             writer.writerows(results)
         logging.info(f"Validation complete. Results saved to '{OUTPUT_CSV}'.")

@@ -17,7 +17,7 @@ class ServiceValidator:
         self.timeout = timeout
         self.headers = {
             'User-Agent': 'EDEN-Endpoint-Validator/1.0',
-                          'Accept': '*.*',  # initially accept any header
+                          'Accept': '*/*',  # initially accept any header
         }
         self.protocol_configs = self._load_service_mappings()
         self._load_validation_config()
@@ -372,21 +372,34 @@ class ServiceValidator:
         is_valid = 200 <= response.status_code < 400
         received_mime = response.headers.get('Content-Type', '').lower()
         
-        # --- API Documentation Page Detection (Smart Recovery) for the Constructed/Final URL ---
+        # --- HTML Based Fallbacks (Decommissioned / Doc Page) for the Constructed/Final URL ---
         is_doc_page = False
-        if is_valid and expected_mime and 'application/json' in expected_mime and 'text/html' in received_mime and not is_recovery_attempt:
-            self.logger.info(f"Attempting smart recovery for {final_url}: Expected JSON, got HTML.")
+        if is_valid and 'text/html' in received_mime:
             response_text_lower = response.text.lower()
-            
-            if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
-                is_doc_page = True
-                self.logger.info(f"Detected API documentation page on {final_url}. Marking as INVALID (Documentation Page).")
+
+            # 1. Check for decommissioned/migrated service keywords
+            if any(keyword in response_text_lower for keyword in self.decommissioned_keywords):
+                self.logger.warning(f"Detected decommissioned service page at {constructed_url}.")
                 return {
                     "valid": False, "status_code": response.status_code, "content_type": received_mime,
                     "url": constructed_url, "expected_content_type": expected_mime,
-                    "note": "Invalid endpoint: Received HTML (API documentation page) instead of JSON. Status 200 OK suggests service is likely active but URL is not a direct service endpoint.",
-                    "is_doc_page": True # Explicitly set here
+                    "error": "Service is decommissioned/migrated.",
+                    "is_doc_page": False
                 }
+
+            # 2. Check for API documentation page
+            if expected_mime and 'application/json' in expected_mime and not is_recovery_attempt:
+                self.logger.info(f"Attempting smart recovery for {final_url}: Expected JSON, got HTML.")
+                
+                if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
+                    is_doc_page = True
+                    self.logger.info(f"Detected API documentation page on {final_url}. Marking as INVALID (Documentation Page).")
+                    return {
+                        "valid": False, "status_code": response.status_code, "content_type": received_mime,
+                        "url": constructed_url, "expected_content_type": expected_mime,
+                        "note": "Invalid endpoint: Received HTML (API documentation page) instead of JSON. Status 200 OK suggests service is likely active but URL is not a direct service endpoint.",
+                        "is_doc_page": True # Explicitly set here
+                    }
         
         # --- Standard MIME Type Mismatch ---
         if is_valid and expected_mime and not any(t in received_mime for t in expected_mime.split(',')):
@@ -432,4 +445,3 @@ class ServiceValidator:
         }
         if note: result["note"] = note
         return result
-

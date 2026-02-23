@@ -1,62 +1,75 @@
-repoTitle,serviceTitle,endpoint
-4TU.ResearchData | science.engineering.design,NetCDF API,https://data.4tu.nl/info/about-your-data/netcdf-and-opendap
-4TU.ResearchData | science.engineering.design,OpenDAP API,https://opendap.4tu.nl/thredds/catalog/catalog.html
-Slovenian Social Science Data Archives,REST API,https://dataverse.adp.fdv.uni-lj.si/api/search?q=*&type=dataset&type=file
-Slovenian Social Science Data Archives,OAI-PMH API,https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify
-Slovenian Social Science Data Archives,OAI-PMH API,https://www.adp.fdv.uni-lj.si/v0/oai?verb=Identify
-Slovenian Social Science Data Archives,other Feed,https://www.adp.fdv.uni-lj.si/en/arhiv-enovic/
-AgroPortal,REST API,https://data.agroportal.lirmm.fr/
-AgroPortal,SPARQL API,https://sparql.agroportal.lirmm.fr/
-ARP Research Data Repository,SWORD API,https://guides.dataverse.org/en/latest/api/index.html
-ARP Research Data Repository,REST API,https://guides.dataverse.org/en/latest/api/native-api.html
-ARP Research Data Repository,OAI-PMH API,https://repo.researchdata.hu/oai?verb=Identify
-Borealis,OAI-PMH API,https://borealisdata.ca/oai?verb=Identify
-Borealis,REST API,https://borealisdata.ca/guides/en/latest/api/native-api.html
-Borealis,SWORD API,https://borealisdata.ca/guides/en/latest/api/sword.html
-data.sciencespo,OAI-PMH API,https://data.sciencespo.fr/oai?verb=Identify
-Coscine,REST API,https://coscine.rwth-aachen.de/coscine/api/swagger/index.html
-Croatian Social Science Data Archive,REST API,https://data.crossda.hr/api/search?q=*
-Croatian Social Science Data Archive,SWORD API,https://data.crossda.hr/dvn/api/data-deposit/v1.1/swordv2/service-document
-Croatian Social Science Data Archive,OAI-PMH API,https://data.crossda.hr/oai?verb=Identify
-EASY,OAI-PMH API,https://easy.dans.knaw.nl/oai/
-EASY,OAI-PMH API,https://easy.dans.knaw.nl/oai/
-DataRepositoriUM,REST API,https://guides.dataverse.org/en/latest/api/native-api.html
-DataRepositoriUM,OAI-PMH API,https://datarepositorium.uminho.pt/oai?verb=Identify
-DataRepositoriUM,SWORD API,https://guides.dataverse.org/en/latest/api/sword.html
-DataverseLV,OAI-PMH API,https://dv.dataverse.lv/oai?verb=Identify
-Open Data Repository of the National Academy of Sciences of Ukraine,OAI-PMH API,https://opendata.nas.gov.ua/oai?verb=Identify
-Open Data Repository of the National Academy of Sciences of Ukraine,REST API,https://opendata.nas.gov.ua/api/search?q=*
-Open Data Repository of the National Academy of Sciences of Ukraine,SWORD API,https://opendata.nas.gov.ua//dvn/api/data-deposit/v1.1/swordv2/service-document
-DTU Data,REST API,https://api.figshare.com/v2/articles?institution=379
-DTU Data,OAI-PMH API,https://api.figshare.com/v2/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&set=portal_379
-Etsin Research Data Finder,REST API,https://www.fairdata.fi/en/metax/apis/
-Finnish Social Science Data Archive,OAI-PMH API,https://services.fsd.tuni.fi/v0/oai
-GESIS Data Archive,OAI-PMH API,https://data.gesis.org/gesiskg/oai/provider?verb=Identify
-GESIS Data Archive,OAI-PMH API,https://dbkapps.gesis.org/dbkoai/
-KU Leuven RDR,OAI-PMH API,https://rdr.kuleuven.be/oai?verb=Identify
-Kielipankki,RSS Feed,https://www.kielipankki.fi/uutinen/feed/
-LiDA,OAI-PMH API,https://lida.dataverse.lt/oai?verb=Identify
-LiDA,REST API,https://lida.dataverse.lt/api/search?q=*
-LiDA,SWORD API,https://lida.dataverse.lt/dvn/api/data-deposit/v1.1/swordv2/service-document
-LINDAT/CLARIAH-CZ repository,OAI-PMH API,https://centres.clarin.eu/oai_pmh
-LINDAT/CLARIAH-CZ repository,ATOM Feed,https://lindat.mff.cuni.cz/repository/xmlui/feed/atom_1.0/site
-LINDAT/CLARIAH-CZ repository,RSS Feed,https://lindat.mff.cuni.cz/repository/xmlui/feed/rss_2.0/site
-LINDAT/CLARIAH-CZ repository,RSS Feed,https://lindat.mff.cuni.cz/repository/xmlui/feed/rss_1.0/site
-Oxford Brookes University: RADAR,OAI-PMH API,https://radar.brookes.ac.uk/radar/oai
-PANGAEA,OAI-PMH API,https://ws.pangaea.de/oai/provider?verb=Identify
-PANGAEA,RSS Feed,https://www.pangaea.de/tools/latest-datasets.rss
-Qualitative Data Repository,OAI-PMH API,https://data.qdr.syr.edu/oai?verb=Identify
-Quetelet-Progedo,OAI-PMH API,https://data.progedo.fr/oai
-RADaR - Digital Repository of Archived Publications of the Institute for Biological Research “Siniša Stanković”,OAI-PMH API,https://radar.ibiss.bg.ac.rs/oai/request?verb=Identify
-Recherche Data Gouv,OAI-PMH API,https://entrepot.recherche.data.gouv.fr/oai?verb=Identify
-ROHub,REST API,https://api.rohub.org/api/swagger/
-STOREDB,REST API,https://www.storedb.org/store_v3/rest_api.jsp
-Strasbourg Astronomical Data Center,FTP API,http://cdsarc.u-strasbg.fr/viz-bin/ftp-index
-Strasbourg Astronomical Data Center,REST API,http://cdsxmatch.u-strasbg.fr/xmatch/api/v1/sync
-STRING,REST API,https://string-db.org/cgi/access.pl?footer_active_subpage=apis
-DataverseNO,REST API,https://guides.dataverse.org/en/latest/api/native-api.html
-DataverseNO,SWORD API,https://guides.dataverse.org/en/latest/api/sword.html
-DataverseNO,OAI-PMH API,https://dataverse.no/oai?verb=Identify
-DataverseNO,RSS Feed,https://site.uit.no/dataverseno/feed/
-UK Data Service,OAI-PMH API,https://oai.ukdataservice.ac.uk:8443/oai/provider?verb=Identify
-World Data Center for Climate,OAI-PMH API,https://dmoai.cloud.dkrz.de/oai/provider?verb=Identify
+repoTitle;serviceTitle;endpoint
+4TU.ResearchData | science.engineering.design;NetCDF API;https://data.4tu.nl/info/about-your-data/netcdf-and-opendap
+4TU.ResearchData | science.engineering.design;OpenDAP API;https://opendap.4tu.nl/thredds/catalog/catalog.html
+Slovenian Social Science Data Archives;REST API;https://dataverse.adp.fdv.uni-lj.si/api/search?q=*&type=dataset&type=file
+Slovenian Social Science Data Archives;OAI-PMH API;https://dataverse.adp.fdv.uni-lj.si/oai?verb=Identify
+Slovenian Social Science Data Archives;OAI-PMH API;https://www.adp.fdv.uni-lj.si/v0/oai?verb=Identify
+Slovenian Social Science Data Archives;other Feed;https://www.adp.fdv.uni-lj.si/en/arhiv-enovic/
+AgroPortal;REST API;https://data.agroportal.lirmm.fr/
+AgroPortal;SPARQL API;https://sparql.agroportal.lirmm.fr/
+ARP Research Data Repository;SWORD API;https://guides.dataverse.org/en/latest/api/index.html
+ARP Research Data Repository;REST API;https://guides.dataverse.org/en/latest/api/native-api.html
+ARP Research Data Repository;OAI-PMH API;https://repo.researchdata.hu/oai?verb=Identify
+Austrian NeuroCloud;;https://anc.plus.ac.at/sitemap.xml
+Austrian NeuroCloud;;https://anc.plus.ac.at/sitemap.xml
+Borealis;OAI-PMH API;https://borealisdata.ca/oai?verb=Identify
+Borealis;REST API;https://borealisdata.ca/guides/en/latest/api/native-api.html
+Borealis;SWORD API;https://borealisdata.ca/guides/en/latest/api/sword.html
+data.sciencespo;OAI-PMH API;https://data.sciencespo.fr/oai?verb=Identify
+Coscine;REST API;https://coscine.rwth-aachen.de/coscine/api/swagger/index.html
+Croatian Social Science Data Archive;REST API;https://data.crossda.hr/api/search?q=*
+Croatian Social Science Data Archive;SWORD API;https://data.crossda.hr/dvn/api/data-deposit/v1.1/swordv2/service-document
+Croatian Social Science Data Archive;OAI-PMH API;https://data.crossda.hr/oai?verb=Identify
+EASY;OAI-PMH API;https://easy.dans.knaw.nl/oai/
+Data Station Life Sciences | DANS;;https://dans.knaw.nl/nl/?s=%7Bsearch_term_string%7D
+EASY;OAI-PMH API;https://easy.dans.knaw.nl/oai/
+Data Station Social Sciences and Humanities | DANS;;https://dans.knaw.nl/nl/?s=%7Bsearch_term_string%7D
+DataRepositoriUM;REST API;https://guides.dataverse.org/en/latest/api/native-api.html
+DataRepositoriUM;OAI-PMH API;https://datarepositorium.uminho.pt/oai?verb=Identify
+DataRepositoriUM;SWORD API;https://guides.dataverse.org/en/latest/api/sword.html
+DataverseLV;OAI-PMH API;https://dv.dataverse.lv/oai?verb=Identify
+Open Data Repository of the National Academy of Sciences of Ukraine;OAI-PMH API;https://opendata.nas.gov.ua/oai?verb=Identify
+Open Data Repository of the National Academy of Sciences of Ukraine;REST API;https://opendata.nas.gov.ua/api/search?q=*
+Open Data Repository of the National Academy of Sciences of Ukraine;SWORD API;https://opendata.nas.gov.ua//dvn/api/data-deposit/v1.1/swordv2/service-document
+DTU Data;REST API;https://api.figshare.com/v2/articles?institution=379
+DTU Data;OAI-PMH API;https://api.figshare.com/v2/oai?verb=ListIdentifiers&metadataPrefix=oai_dc&set=portal_379
+Etsin Research Data Finder;REST API;https://www.fairdata.fi/en/metax/apis/
+Fairdata;;https://www.fairdata.fi/search/%7Bsearch_term_string%7D/
+Finnish Social Science Data Archive;OAI-PMH API;https://services.fsd.tuni.fi/v0/oai
+GESIS Data Archive;OAI-PMH API;https://data.gesis.org/gesiskg/oai/provider?verb=Identify
+GESIS Data Archive;OAI-PMH API;https://dbkapps.gesis.org/dbkoai/
+INFRA-ART SWIR Spectral Data Collection;;https://infraart.inoe.ro/sitemap.xml
+KU Leuven RDR;OAI-PMH API;https://rdr.kuleuven.be/oai?verb=Identify
+Kielipankki;RSS Feed;https://www.kielipankki.fi/uutinen/feed/
+LiDA;OAI-PMH API;https://lida.dataverse.lt/oai?verb=Identify
+LiDA;REST API;https://lida.dataverse.lt/api/search?q=*
+LiDA;SWORD API;https://lida.dataverse.lt/dvn/api/data-deposit/v1.1/swordv2/service-document
+LINDAT/CLARIAH-CZ repository;OAI-PMH API;https://centres.clarin.eu/oai_pmh
+LINDAT/CLARIAH-CZ repository;ATOM Feed;https://lindat.mff.cuni.cz/repository/xmlui/feed/atom_1.0/site
+LINDAT/CLARIAH-CZ repository;RSS Feed;https://lindat.mff.cuni.cz/repository/xmlui/feed/rss_2.0/site
+LINDAT/CLARIAH-CZ repository;RSS Feed;https://lindat.mff.cuni.cz/repository/xmlui/feed/rss_1.0/site
+Oxford Brookes University: RADAR;OAI-PMH API;https://radar.brookes.ac.uk/radar/oai
+PANGAEA;;https://pangaea.de/?q=%7Bsearch_term_string%7D
+PANGAEA;OAI-PMH API;https://ws.pangaea.de/oai/provider?verb=Identify
+PANGAEA;RSS Feed;https://www.pangaea.de/tools/latest-datasets.rss
+Qualitative Data Repository;OAI-PMH API;https://data.qdr.syr.edu/oai?verb=Identify
+Quetelet-Progedo;OAI-PMH API;https://data.progedo.fr/oai
+RADaR - Digital Repository of Archived Publications of the Institute for Biological Research “Siniša Stanković”;OAI-PMH API;https://radar.ibiss.bg.ac.rs/oai/request?verb=Identify
+Recherche Data Gouv;OAI-PMH API;https://entrepot.recherche.data.gouv.fr/oai?verb=Identify
+ROHub;REST API;https://api.rohub.org/api/swagger/
+STOREDB;REST API;https://www.storedb.org/store_v3/rest_api.jsp
+Strasbourg Astronomical Data Center;FTP API;http://cdsarc.u-strasbg.fr/viz-bin/ftp-index
+Strasbourg Astronomical Data Center;REST API;http://cdsxmatch.u-strasbg.fr/xmatch/api/v1/sync
+STRING protein-protein interaction networks;;https://string-db.org/cgi/network?identifier=%7Bquery_string%7D
+STRING;REST API;https://string-db.org/cgi/access.pl?footer_active_subpage=apis
+DataverseNO;REST API;https://guides.dataverse.org/en/latest/api/native-api.html
+DataverseNO;SWORD API;https://guides.dataverse.org/en/latest/api/sword.html
+DataverseNO;OAI-PMH API;https://dataverse.no/oai?verb=Identify
+DataverseNO;RSS Feed;https://site.uit.no/dataverseno/feed/
+UK Data Service;OAI-PMH API;https://oai.ukdataservice.ac.uk:8443/oai/provider?verb=Identify
+About us - UK Data Service;;https://ukdataservice.ac.uk/?s=%7Bsearch_term_string%7D
+World Data Center for Climate;;https://www.wdc-climate.de/ui/q?query=%7Bsearch_term_string%7D
+World Data Center for Climate;OAI-PMH API;https://dmoai.cloud.dkrz.de/oai/provider?verb=Identify
+PANGAEA;;https://www.pangaea.de/?q=%7Bsearch_term_string%7D
+PANGAEA;OAI-PMH API;https://ws.pangaea.de/oai/provider?verb=Identify
+PANGAEA;RSS Feed;https://www.pangaea.de/tools/latest-datasets.rss
