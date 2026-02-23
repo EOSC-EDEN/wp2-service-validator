@@ -190,7 +190,8 @@ class ServiceValidator:
             'RSS': ['<rss', '<channel'],
             'ATOM': ['<feed', 'xmlns="http://www.w3.org/2005/atom"'],
             'OGC-WMS': ['wms_capabilities', 'service="wms"'],
-            'OGC-CSW': ['csw:capabilities', 'service="csw"']
+            'OGC-CSW': ['csw:capabilities', 'service="csw"'],
+            'FTP': ['index of /', 'parent directory', 'name', 'last modified', 'size', 'ftp directory', '[to parent directory]']
         }
 
         type_patterns = patterns.get(expected_type, [])
