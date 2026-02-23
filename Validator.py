@@ -103,17 +103,46 @@ class ServiceValidator:
 
 
 
-    def _check_auth_requirement(self, url):
+    def _classify_html_response(self, response, url, is_recovery_attempt=False, expected_mime=None):
         """
-        Checks if the endpoint requires authentication for the *initial* URL.
-        Returns: 'required' if 401/403, 'unknown' if timeout/error, None if no auth required
+        Scans a text/html response for decommissioned or documentation keywords.
+        Returns a dict with 'is_valid', 'is_doc_page', 'note', and 'error' overrides if found,
+        or None if it's just generic HTML.
         """
-        try:
-            # Use HEAD request for efficiency, but GET is safer for some servers
-            response = requests.get(url, headers=self.headers, timeout=self.timeout, allow_redirects=False)
-            return 'required' if response.status_code in [401, 403] else 'No'
-        except requests.RequestException:
-            return 'unknown'
+        received_mime = response.headers.get('Content-Type', '').lower()
+        if 'text/html' not in received_mime:
+             return None
+
+        response_text_lower = response.text[:5000].lower()
+
+        # 1. Check for decommissioned/migrated service keywords
+        if any(keyword in response_text_lower for keyword in self.decommissioned_keywords):
+            self.logger.warning(f"Detected decommissioned service page at {url}.")
+            return {
+                "valid": False, "is_doc_page": False, 
+                "error": "Service is decommissioned/migrated.",
+                "note": "Endpoint is a documentation page for a decommissioned/migrated service."
+            }
+
+        # 2. Check for API documentation page
+        # We check this even if we aren't recovering, as a doc page means it's not the raw endpoint.
+        # But if it's a recovery attempt, we might have explicitly sought a doc page, so we skip marking it invalid here
+        # or handle it based on the caller's context. Usually, doc pages are invalid service endpoints.
+        if not is_recovery_attempt:
+             if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
+                 self.logger.info(f"Detected API documentation page on {url}. Marking as INVALID (Documentation Page).")
+                 
+                 # Construct a helpful note based on expectations
+                 note = "Invalid endpoint: Received HTML (API documentation page). Status 200 OK suggests service is likely active but URL is not a direct service endpoint."
+                 if expected_mime:
+                      note = f"Invalid endpoint: Received HTML (API documentation page) instead of expected {expected_mime}. Status 200 OK suggests service is likely active but URL is not a direct service endpoint."
+                      
+                 return {
+                     "valid": False, "is_doc_page": True,
+                     "note": note
+                 }
+                 
+        return None
 
     def _build_redirect_chain_info(self, response):
         """Builds a list of redirect steps with status code and destination URL."""
@@ -197,9 +226,6 @@ class ServiceValidator:
         if not url:
             return {"valid": False, "error": "Empty URL"}
 
-        # 1. Check auth requirement for the *initial* URL
-        auth_required = self._check_auth_requirement(url)
-
         # Prepare Headers with specific Accept if expected_type is provided
         current_headers = self.headers.copy()
         config = None
@@ -214,8 +240,16 @@ class ServiceValidator:
 
         try:
             main_response = requests.get(url, headers=current_headers, timeout=self.timeout, allow_redirects=True)
+            
+            # Derive Auth Requirement from the request chain
+            auth_required = 'No'
+            if main_response.status_code in [401, 403]:
+                 auth_required = 'required'
+            elif main_response.history and main_response.history[0].status_code in [401, 403]:
+                 auth_required = 'required'
+                 
         except requests.RequestException as e:
-            return {"valid": False, "error": str(e), "url": url, "auth_required": auth_required}
+            return {"valid": False, "error": str(e), "url": url, "auth_required": "unknown"}
 
         final_url = main_response.url
         
@@ -254,7 +288,7 @@ class ServiceValidator:
                 # --- Step 2: "Magic" / Construction Fallback ---
                 # If initial check didn't satisfy strict requirements, try constructing the specific service URL
                 self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
-                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, main_response=main_response)
+                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, current_headers, main_response=main_response)
             else:
                  return {
                     "valid": False, 
@@ -335,7 +369,7 @@ class ServiceValidator:
              # Let's replicate that logic but cleaner
              return f"{base_url.rstrip('/')}{separator if suffix.startswith('?') else '/'}{suffix.lstrip('?/ ')}"
 
-    def _check_specific_http(self, response, final_url, config, api_type, is_recovery_attempt, main_response=None):
+    def _check_specific_http(self, response, final_url, config, api_type, is_recovery_attempt, headers_to_use, main_response=None):
         suffix = config['suffix']
         expected_mime = config['accept']
 
@@ -344,7 +378,7 @@ class ServiceValidator:
         request_failed = False
         if constructed_url != final_url:
             try:
-                response = requests.get(constructed_url, headers=self.headers, timeout=self.timeout)
+                response = requests.get(constructed_url, headers=headers_to_use, timeout=self.timeout)
             except requests.RequestException as e:
                 request_failed = True
                 # Fallback: if we have the main_response (initial URL) and it was successful, check if THAT is a doc page.
@@ -374,42 +408,33 @@ class ServiceValidator:
         
         # --- HTML Based Fallbacks (Decommissioned / Doc Page) for the Constructed/Final URL ---
         is_doc_page = False
-        if is_valid and 'text/html' in received_mime:
-            response_text_lower = response.text.lower()
-
-            # 1. Check for decommissioned/migrated service keywords
-            if any(keyword in response_text_lower for keyword in self.decommissioned_keywords):
-                self.logger.warning(f"Detected decommissioned service page at {constructed_url}.")
-                return {
-                    "valid": False, "status_code": response.status_code, "content_type": received_mime,
-                    "url": constructed_url, "expected_content_type": expected_mime,
-                    "error": "Service is decommissioned/migrated.",
-                    "is_doc_page": False
-                }
-
-            # 2. Check for API documentation page
-            if expected_mime and 'application/json' in expected_mime and not is_recovery_attempt:
-                self.logger.info(f"Attempting smart recovery for {final_url}: Expected JSON, got HTML.")
-                
-                if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
-                    is_doc_page = True
-                    self.logger.info(f"Detected API documentation page on {final_url}. Marking as INVALID (Documentation Page).")
-                    return {
-                        "valid": False, "status_code": response.status_code, "content_type": received_mime,
-                        "url": constructed_url, "expected_content_type": expected_mime,
-                        "note": "Invalid endpoint: Received HTML (API documentation page) instead of JSON. Status 200 OK suggests service is likely active but URL is not a direct service endpoint.",
-                        "is_doc_page": True # Explicitly set here
-                    }
+        html_classification = self._classify_html_response(response, constructed_url, is_recovery_attempt, expected_mime)
         
-        # --- Standard MIME Type Mismatch ---
-        if is_valid and expected_mime and not any(t in received_mime for t in expected_mime.split(',')):
-            is_valid = False
-            return {
-                "valid": is_valid, "status_code": response.status_code, "content_type": received_mime,
-                "url": constructed_url, "expected_content_type": expected_mime,
-                "error": f"Invalid Content-Type: expected '{expected_mime}', got '{received_mime}'",
-                "is_doc_page": is_doc_page # Pass the flag even if invalid
-            }
+        if html_classification:
+             is_valid = html_classification.get('valid', False)
+             is_doc_page = html_classification.get('is_doc_page', False)
+             
+             result = {
+                 "valid": is_valid, "status_code": response.status_code, "content_type": received_mime,
+                 "url": constructed_url, "expected_content_type": expected_mime,
+                 "is_doc_page": is_doc_page
+             }
+             if 'error' in html_classification: result['error'] = html_classification['error']
+             if 'note' in html_classification: result['note'] = html_classification['note']
+             return result
+             
+             
+        # --- Strict Signature Checking Fallback ---
+        # Instead of just checking expected_mime string inclusion, reuse our robust strict matching parser
+        if is_valid:
+            if not self._is_strict_content_match(response, api_type, config):
+                 is_valid = False
+                 return {
+                     "valid": is_valid, "status_code": response.status_code, "content_type": received_mime,
+                     "url": constructed_url, "expected_content_type": expected_mime,
+                     "error": f"Invalid Content-Type or Body Signature: expected '{expected_mime}' format for '{api_type}', got '{received_mime}'",
+                     "is_doc_page": is_doc_page # Pass the flag even if invalid
+                 }
 
         return {
             "valid": is_valid, "status_code": response.status_code, "content_type": received_mime,
@@ -422,20 +447,11 @@ class ServiceValidator:
         note = None
         is_doc_page = False # Default for generic check
 
-        if is_valid and 'text/html' in response.headers.get('Content-Type', '').lower():
-            response_text_lower = response.text.lower()
-            if any(keyword in response_text_lower for keyword in self.decommissioned_keywords):
-                is_valid = False
-                note = "Endpoint is a documentation page for a decommissioned/migrated service."
-                self.logger.warning(f"Detected decommissioned service page at {final_url}.")
-            else:
-                # Also check for general API documentation pages in generic HTML responses
-                if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
-                    is_doc_page = True
-                    is_valid = False # Mark as invalid because it's a doc page, not a service endpoint
-                    note = "Invalid endpoint: Received HTML (API documentation page). Status 200 OK suggests service is likely active."
-                    self.logger.info(f"Detected API documentation page in generic HTML response at {final_url}.")
-
+        html_classification = self._classify_html_response(response, final_url)
+        if html_classification:
+             is_valid = html_classification.get('valid', False)
+             is_doc_page = html_classification.get('is_doc_page', False)
+             if 'note' in html_classification: note = html_classification['note']
 
         result = {
             "valid": is_valid, "status_code": response.status_code,
