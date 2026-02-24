@@ -113,7 +113,7 @@ class ServiceValidator:
         if 'text/html' not in received_mime:
              return None
 
-        response_text_lower = response.text[:5000].lower()
+        response_text_lower = response.text[:50000].lower()
 
         # 1. Check for decommissioned/migrated service keywords
         if any(keyword in response_text_lower for keyword in self.decommissioned_keywords):
@@ -181,7 +181,7 @@ class ServiceValidator:
 
         # 2. Check Body Patterns (Bonus Confirmation or Fallback)
         body_match = False
-        text = response.text[:5000].lower()
+        text = response.text[:50000].lower()
 
         patterns = {
             'OAI-PMH': ['<oai-pmh', 'xmlns:oai', 'oai:identifier', '<oai_dc:dc', 'xmlns:oai_dc'],
