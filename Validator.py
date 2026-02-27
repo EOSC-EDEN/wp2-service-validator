@@ -46,7 +46,12 @@ class ServiceValidator:
         csv_path = os.path.join(os.path.dirname(__file__), 'services_default_queries.csv')
         try:
             with open(csv_path, mode='r', encoding='utf-8') as infile:
-                reader = csv.DictReader(infile)
+                # Detect delimiter based on the first line
+                first_line = infile.readline()
+                delimiter = ';' if ';' in first_line else ','
+                infile.seek(0)
+                
+                reader = csv.DictReader(infile, delimiter=delimiter)
                 for row in reader:
                     api_type = row.get('Acronym')
                     if api_type and api_type.strip():
@@ -227,17 +232,34 @@ class ServiceValidator:
         if not url:
             return {"valid": False, "error": "Empty URL"}
 
+        # Check Expected Type First
+        if not expected_type:
+            return {
+                "valid": False,
+                "error": "Strict Mode Required: No expected service type provided.",
+                "url": url,
+                "auth_required": "unknown",
+                "final_url": url
+            }
+            
+        if expected_type not in self.protocol_configs:
+            return {
+                "valid": False, 
+                "error": f"Unknown Service Type: '{expected_type}'", 
+                "url": url, 
+                "auth_required": "unknown",
+                "final_url": url
+            }
+
         # Prepare Headers with specific Accept if expected_type is provided
         current_headers = self.headers.copy()
-        config = None
-        if expected_type and expected_type in self.protocol_configs:
-             config = self.protocol_configs.get(expected_type)
-             # Construct Accept header with q-values
-             # e.g., "application/xml;q=1.0, text/html;q=0.9, */*;q=0.8"
-             specific_accept = config.get('accept')
-             if specific_accept:
-                 # Ensure we have a valid mime type str
-                 current_headers['Accept'] = f"{specific_accept};q=1.0, text/html;q=0.9, */*;q=0.8"
+        config = self.protocol_configs.get(expected_type)
+        # Construct Accept header with q-values
+        # e.g., "application/xml;q=1.0, text/html;q=0.9, */*;q=0.8"
+        specific_accept = config.get('accept')
+        if specific_accept:
+            # Ensure we have a valid mime type str
+            current_headers['Accept'] = f"{specific_accept};q=1.0, text/html;q=0.9, */*;q=0.8"
 
         try:
             main_response = requests.get(url, headers=current_headers, timeout=self.timeout, allow_redirects=True)
@@ -246,6 +268,10 @@ class ServiceValidator:
             auth_required = 'No'
             if main_response.status_code in [401, 403]:
                  auth_required = 'required'
+            # Note: The requests library might internally negotiate auth challenges (like Digest) 
+            # and append the initial 401/403 to the history of a subsequent successful request.
+            # While this script never provides credentials so negotiation won't succeed,
+            # this check acts as a theoretical safeguard against unexpected server redirects after a 401.
             elif main_response.history and main_response.history[0].status_code in [401, 403]:
                  auth_required = 'required'
                  
@@ -253,60 +279,55 @@ class ServiceValidator:
             return {"valid": False, "error": str(e), "url": url, "auth_required": "unknown"}
 
         final_url = main_response.url
-        
-        detected_type = None
+        detected_type = expected_type
 
-        if expected_type:
-             # Strict Mode Flow
-            if expected_type in self.protocol_configs:
-                detected_type = expected_type
-                config = self.protocol_configs.get(detected_type)
+        # --- Step 1: Strict Initial Check ---
+        # Check if the repository is already giving us what we want on the base URL
+        if 200 <= main_response.status_code < 400:
+            if self._is_strict_content_match(main_response, expected_type, config):
+                self.logger.info(f"Initial URL '{final_url}' strictly matches expected type '{expected_type}'. Skipping construction logic.")
 
-                # --- Step 1: Strict Initial Check ---
-                # Check if the repository is already giving us what we want on the base URL
-                if 200 <= main_response.status_code < 400:
-                    if self._is_strict_content_match(main_response, expected_type, config):
-                        self.logger.info(f"Initial URL '{final_url}' strictly matches expected type '{expected_type}'. Skipping construction logic.")
+                redirect_chain_list = self._build_redirect_chain_info(main_response)
 
-                        redirect_chain_list = self._build_redirect_chain_info(main_response)
-
-                        return {
-                            "valid": True,
-                            "status_code": main_response.status_code,
-                            "content_type": main_response.headers.get('Content-Type', '').lower(),
-                            "url": url, # Original URL was valid
-                            "final_url": final_url,
-                            "constructed_url": '', # No construction needed
-                            "expected_content_type": config.get('accept'),
-                            "auth_required": auth_required,
-                            "note": "Initial URL validation successful.",
-                            "redirects": redirect_chain_list,
-                            "had_redirect": bool(redirect_chain_list),
-                            "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list]),
-                            "is_doc_page": False
-                        }
-
-                # --- Step 2: "Magic" / Construction Fallback ---
-                # If initial check didn't satisfy strict requirements, try constructing the specific service URL
-                self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
-                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, current_headers, main_response=main_response)
-            else:
-                 return {
-                    "valid": False, 
-                    "error": f"Unknown Service Type: '{expected_type}'", 
-                    "url": url, 
+                return {
+                    "valid": True,
+                    "status_code": main_response.status_code,
+                    "content_type": main_response.headers.get('Content-Type', '').lower(),
+                    "url": url, # Original URL was valid
+                    "final_url": final_url,
+                    "constructed_url": '', # No construction needed
+                    "expected_content_type": config.get('accept'),
                     "auth_required": auth_required,
-                    "final_url": final_url
+                    "note": "Initial URL validation successful.",
+                    "redirects": redirect_chain_list,
+                    "had_redirect": bool(redirect_chain_list),
+                    "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list]),
+                    "is_doc_page": False
                 }
-        else:
-            # Enforce Strict Validation: No Auto-Detection Fallback
-            return {
-                "valid": False,
-                "error": "Strict Mode Required: No expected service type provided.",
-                "url": url,
-                "auth_required": auth_required,
-                "final_url": final_url
+                
+        # --- Step 1.5: Initial URL Decommissioned / Doc Page Check ---
+        # Before trying to build a magic URL, check if the *initial* URL is fundamentally an invalid type
+        # (like a decommissioned page or a documentation page).
+        # If it is, there's no point in building a magic URL from it.
+        initial_html_classification = self._classify_html_response(main_response, final_url, expected_mime=config.get('accept'))
+        if initial_html_classification:
+            self.logger.info(f"Initial URL '{final_url}' failed strict validation and was classified as an invalid HTML page (e.g. Doc/Decommissioned). Skipping magic URL construction.")
+            core_result = {
+                 "valid": initial_html_classification.get('valid', False),
+                 "status_code": main_response.status_code,
+                 "content_type": main_response.headers.get('Content-Type', '').lower(),
+                 "url": final_url,
+                 "expected_content_type": config.get('accept'),
+                 "is_doc_page": initial_html_classification.get('is_doc_page', False)
             }
+            if 'error' in initial_html_classification: core_result['error'] = initial_html_classification['error']
+            if 'note' in initial_html_classification: core_result['note'] = initial_html_classification['note']
+        else:
+            # --- Step 2: "Magic" / Construction Fallback ---
+            # If initial check didn't satisfy strict requirements AND wasn't a doc/decommissioned page, 
+            # try constructing the specific service URL
+            self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
+            core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, current_headers, main_response=main_response)
 
         # --- Assemble the final, complete result dictionary ---
         final_result = core_result.copy()
@@ -382,27 +403,13 @@ class ServiceValidator:
                 response = requests.get(constructed_url, headers=headers_to_use, timeout=self.timeout)
             except requests.RequestException as e:
                 request_failed = True
-                # Fallback: if we have the main_response (initial URL) and it was successful, check if THAT is a doc page.
-                if main_response and 200 <= main_response.status_code < 400:
-                    self.logger.info(f"Strict check failed for {constructed_url}. Falling back to check original URL {main_response.url} for documentation.")
-                    fallback_result = self._check_generic_http(main_response, main_response.url)
-                    # If the fallback says it's valid (e.g. Doc Page), return that.
-                    if fallback_result.get('valid') and fallback_result.get('is_doc_page'):
-                        fallback_result['note'] = f"Strict check failed on '{constructed_url}' ({e}), but original URL seems to be a valid documentation page."
-                        fallback_result['failed_url'] = constructed_url
-                        return fallback_result
-
                 return {"valid": False, "error": str(e), "url": constructed_url}
         
-        # If status code indicates failure (e.g. 404, 500), try fallback to main_response
+        # If status code indicates failure (e.g. 404, 500)
+        # We no longer fall back to checking the original URL because we already checked
+        # the original URL in `validate_url` *before* getting here.
         if not (200 <= response.status_code < 400):
-             if main_response and 200 <= main_response.status_code < 400:
-                self.logger.info(f"Strict check returned {response.status_code} for {constructed_url}. Falling back to check original URL {main_response.url} for documentation.")
-                fallback_result = self._check_generic_http(main_response, main_response.url)
-                if fallback_result.get('valid') and fallback_result.get('is_doc_page'):
-                    fallback_result['note'] = f"Strict check failed on '{constructed_url}' (Status {response.status_code}), but original URL seems to be a valid documentation page."
-                    fallback_result['failed_url'] = constructed_url
-                    return fallback_result
+             pass # Will just be processed as an invalid result below
 
         is_valid = 200 <= response.status_code < 400
         received_mime = response.headers.get('Content-Type', '').lower()

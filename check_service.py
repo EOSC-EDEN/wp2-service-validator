@@ -20,7 +20,7 @@ def main():
             print("Error: URL is required.")
             return
 
-    # If no type via CLI, ask interactively (Restored functionality)
+    # If no type via CLI, ask interactively
     if not expected_type:
         expected_type = input("Enter expected Service Type (e.g., OAI-PMH): ").strip()
         if not expected_type:

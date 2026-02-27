@@ -1,12 +1,8 @@
+import argparse
 import csv
 import os
 from Validator import ServiceValidator
 import logging
-
-# --- Configuration ---
-INPUT_CSV = 'repository services.csv'
-OUTPUT_CSV = 'validation_results.csv'
-# -------------------
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -14,8 +10,16 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def run_batch_validation():
     """Reads service endpoints from a CSV file, validates them, and writes the results to a new CSV.
     """
-    if not os.path.exists(INPUT_CSV):
-        logging.error(f"Input file not found: {INPUT_CSV}")
+    parser = argparse.ArgumentParser(description="Run batch validation on a CSV of service endpoints.")
+    parser.add_argument("--input", default='repository services.csv', help="Path to the input CSV file.")
+    parser.add_argument("--output", default='validation_results.csv', help="Path to the output CSV file.")
+    args = parser.parse_args()
+
+    input_csv = args.input
+    output_csv = args.output
+
+    if not os.path.exists(input_csv):
+        logging.error(f"Input file not found: {input_csv}")
         return
 
     validator = ServiceValidator()
@@ -24,13 +28,15 @@ def run_batch_validation():
     results = []
     total_rows = 0
 
-    logging.info(f"Starting batch validation for services in '{INPUT_CSV}'...")
+    logging.info(f"Starting batch validation for services in '{input_csv}'...")
     logging.info(f"Loaded {len(available_types)} service type definition(s).")
 
-    # Detect delimiter or force semicolon based on user report
-    delimiter = ';' 
-
-    with open(INPUT_CSV, mode='r', encoding='utf-8') as infile:
+    # Detect delimiter based on the first line
+    with open(input_csv, mode='r', encoding='utf-8') as infile:
+        first_line = infile.readline()
+        delimiter = ';' if ';' in first_line else ','
+        infile.seek(0)
+        
         reader = csv.DictReader(infile, delimiter=delimiter)
         fieldnames = reader.fieldnames
 
@@ -40,7 +46,7 @@ def run_batch_validation():
         pass
 
     # Re-open to process
-    with open(INPUT_CSV, mode='r', encoding='utf-8') as infile:
+    with open(input_csv, mode='r', encoding='utf-8') as infile:
         # Count lines first
         total_rows = sum(1 for _ in infile) - 1
         infile.seek(0)
@@ -119,14 +125,18 @@ def run_batch_validation():
 
     final_fieldnames = ordered_fieldnames + sorted(list(all_keys - set(ordered_fieldnames)))
 
-
     try:
-        with open(OUTPUT_CSV, mode='w', newline='', encoding='utf-8') as outfile:
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_csv)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            
+        with open(output_csv, mode='w', newline='', encoding='utf-8') as outfile:
             # Use extrasaction='ignore' to avoid errors if a row is missing a key from another row
             writer = csv.DictWriter(outfile, fieldnames=final_fieldnames, extrasaction='ignore', delimiter=delimiter)
             writer.writeheader()
             writer.writerows(results)
-        logging.info(f"Validation complete. Results saved to '{OUTPUT_CSV}'.")
+        logging.info(f"Validation complete. Results saved to '{output_csv}'.")
     except IOError as e:
         logging.error(f"Failed to write to output file: {e}")
 
