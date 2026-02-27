@@ -299,9 +299,30 @@ class ServiceValidator:
         final_url = main_response.url
         detected_type = expected_type
 
-        # --- Step 1: Strict Initial Check ---
-        # Check if the repository is already giving us what we want on the base URL
-        if 200 <= main_response.status_code < 400:
+        # --- Step 1: Doc Page / Decommissioned Check ---
+        # This MUST run before the strict content match. A documentation page about a technology
+        # (e.g. a page describing NetCDF/OPeNDAP) will naturally contain the same keywords we scan
+        # for in body signatures, causing false positives if we check body patterns first.
+        # By classifying HTML pages here first, we ensure that any page that looks like a doc or
+        # decommissioned notice is rejected immediately, before the body signature check can fire.
+        initial_html_classification = self._classify_html_response(main_response, final_url, expected_mime=config.get('accept'))
+        if initial_html_classification:
+            self.logger.info(f"Initial URL '{final_url}' was classified as an invalid HTML page (Doc/Decommissioned). Skipping strict match and magic URL construction.")
+            core_result = {
+                 "valid": initial_html_classification.get('valid', False),
+                 "status_code": main_response.status_code,
+                 "content_type": main_response.headers.get('Content-Type', '').lower(),
+                 "url": final_url,
+                 "expected_content_type": config.get('accept'),
+                 "is_doc_page": initial_html_classification.get('is_doc_page', False)
+            }
+            if 'error' in initial_html_classification: core_result['error'] = initial_html_classification['error']
+            if 'note' in initial_html_classification: core_result['note'] = initial_html_classification['note']
+
+        # --- Step 2: Strict Initial Check ---
+        # Only reached if the response was NOT identified as a doc/decommissioned page above.
+        # Check if the repository is already giving us what we want on the base URL.
+        elif 200 <= main_response.status_code < 400:
             if self._is_strict_content_match(main_response, expected_type, config):
                 self.logger.info(f"Initial URL '{final_url}' strictly matches expected type '{expected_type}'. Skipping construction logic.")
 
@@ -322,28 +343,16 @@ class ServiceValidator:
                     "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list]),
                     "is_doc_page": False
                 }
-                
-        # --- Step 1.5: Initial URL Decommissioned / Doc Page Check ---
-        # Before trying to build a magic URL, check if the *initial* URL is fundamentally an invalid type
-        # (like a decommissioned page or a documentation page).
-        # If it is, there's no point in building a magic URL from it.
-        initial_html_classification = self._classify_html_response(main_response, final_url, expected_mime=config.get('accept'))
-        if initial_html_classification:
-            self.logger.info(f"Initial URL '{final_url}' failed strict validation and was classified as an invalid HTML page (e.g. Doc/Decommissioned). Skipping magic URL construction.")
-            core_result = {
-                 "valid": initial_html_classification.get('valid', False),
-                 "status_code": main_response.status_code,
-                 "content_type": main_response.headers.get('Content-Type', '').lower(),
-                 "url": final_url,
-                 "expected_content_type": config.get('accept'),
-                 "is_doc_page": initial_html_classification.get('is_doc_page', False)
-            }
-            if 'error' in initial_html_classification: core_result['error'] = initial_html_classification['error']
-            if 'note' in initial_html_classification: core_result['note'] = initial_html_classification['note']
+
+            # --- Step 3: "Magic" / Construction Fallback ---
+            # Strict match failed and it's not a doc/decommissioned page.
+            # Try constructing the specific service URL by appending the known suffix.
+            else:
+                self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
+                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, current_headers, main_response=main_response)
+
         else:
-            # --- Step 2: "Magic" / Construction Fallback ---
-            # If initial check didn't satisfy strict requirements AND wasn't a doc/decommissioned page, 
-            # try constructing the specific service URL
+            # Non-2xx/3xx response and not an HTML doc page — pass through to magic URL construction.
             self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
             core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, current_headers, main_response=main_response)
 
