@@ -213,9 +213,6 @@ class ServiceValidator:
             return True
 
         # If CT matches and we didn't explicitly fail a body check (or didn't check), trust CT.
-        # But if we checked body and it failed, should we still trust CT?
-        # User said "as long as one of them is successful".
-        # So yes, trust CT if it matches.
         if ct_match:
             return True
 
