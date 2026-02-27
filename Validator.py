@@ -111,8 +111,9 @@ class ServiceValidator:
     def _classify_html_response(self, response, url, is_recovery_attempt=False, expected_mime=None):
         """
         Scans a text/html response for decommissioned or documentation keywords.
-        Returns a dict with 'is_valid', 'is_doc_page', 'note', and 'error' overrides if found,
-        or None if it's just generic HTML.
+        Returns a dict with 'valid', 'is_doc_page', and optional 'note' and 'error' 
+        values that the caller should use to override its default validation results.
+        Returns None if it's just generic HTML and standard validation should continue.
         """
         received_mime = response.headers.get('Content-Type', '').lower()
         if 'text/html' not in received_mime:
@@ -291,7 +292,7 @@ class ServiceValidator:
                     "status_code": main_response.status_code,
                     "content_type": main_response.headers.get('Content-Type', '').lower(),
                     "url": url, # Original URL was valid
-                    "final_url": final_url,
+                    "redirected_url": final_url,
                     "constructed_url": '', # No construction needed
                     "expected_content_type": config.get('accept'),
                     "auth_required": auth_required,
@@ -340,13 +341,9 @@ class ServiceValidator:
         constructed_url = final_result.get('url', '')
         # If the core_result didn't set 'url' specifically (it does usually), or if it set it to constructed
         final_result['constructed_url'] = constructed_url if constructed_url and constructed_url != final_url else ''
-        final_result['final_url'] = final_url
+        final_result['redirected_url'] = final_url
 
-        # Ensure 'url' in final output matches the logic we want (usually the one that was validated)
-        # But for the CSV output we check 'constructed_url' and 'final_url'.
-        # Let's ensure 'url' key is consistent or removed if confusing.
-        # But 'check_service.py' might rely on 'url'.
-        # Actually, let's keep 'url' as the "Validated URL" (endpoint).
+
 
         if 'is_doc_page' not in final_result:
             final_result['is_doc_page'] = False

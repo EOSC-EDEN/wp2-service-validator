@@ -108,7 +108,7 @@ def run_batch_validation():
         'content_type',
         'expected_content_type',
         'constructed_url',
-        'final_url',
+        'redirected_url',
         'error',
         'note',
         'failed_url',
