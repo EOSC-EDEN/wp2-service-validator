@@ -1,4 +1,4 @@
-import requests
+﻿import requests
 import os
 import csv
 import logging
@@ -197,7 +197,12 @@ class ServiceValidator:
             'ATOM': ['<feed', 'xmlns="http://www.w3.org/2005/atom"'],
             'OGC-WMS': ['wms_capabilities', 'service="wms"'],
             'OGC-CSW': ['csw:capabilities', 'service="csw"'],
-            'FTP': ['index of /', 'parent directory', 'name', 'last modified', 'size', 'ftp directory', '[to parent directory]']
+            # FTP and NetCDF use text/html (too generic to trust alone) -- see require_both below.
+            # FTP: only FTP-specific phrases; generic terms like 'name'/'size'/'last modified'
+            # were removed as they also appear on plain directory listing pages.
+            'FTP': ['index of /', 'ftp directory', '[to parent directory]', 'parent directory'],
+            # NetCDF/OPeNDAP dataset pages expose these characteristic identifiers:
+            'NetCDF': ['opendap', 'thredds', 'netcdf', '.nc"', 'das', 'dds'],
         }
 
         type_patterns = patterns.get(expected_type, [])
@@ -209,11 +214,26 @@ class ServiceValidator:
                 self.logger.debug(f"Body signature match failed for '{expected_type}'.")
 
         # Validation Logic:
-        # If body matches, we trust it (overriding potential CT mismatch).
+        # Most types: either a CT match OR a body signature match is sufficient.
+        # However, some types use a generic accept type (e.g. text/html for FTP and NetCDF)
+        # that would match virtually any web page. For these, we require BOTH conditions
+        # to be true simultaneously to avoid false positives.
+        require_both = {'FTP', 'NetCDF'}
+
+        if expected_type in require_both:
+            # Strict: both CT and body must match
+            if ct_match and body_match:
+                return True
+            if ct_match and not body_match:
+                self.logger.debug(f"'{expected_type}' requires body signature confirmation (generic accept type), but body check failed.")
+            return False
+
+        # Standard "either/or" logic for all other types:
+        # If body matches, trust it even if CT is ambiguous (handles misconfigured servers).
         if body_match:
             return True
 
-        # If CT matches and we didn't explicitly fail a body check (or didn't check), trust CT.
+        # If CT matches and body check wasn't performed or wasn't needed, trust CT.
         if ct_match:
             return True
 
