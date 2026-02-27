@@ -366,13 +366,13 @@ class ServiceValidator:
         final_result['had_redirect'] = bool(redirect_chain_list)
         final_result['redirect_chain'] = " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list])
 
-        # Handle URL keys for consistent output
+        # Handle URL keys for consistent output.
+        # 'constructed_url' is only set when URL construction/magic was used.
+        # 'redirected_url' is only set when at least one redirect actually occurred.
+        # Both are empty strings when not applicable, making them easy to filter on in the CSV.
         constructed_url = final_result.get('url', '')
-        # If the core_result didn't set 'url' specifically (it does usually), or if it set it to constructed
         final_result['constructed_url'] = constructed_url if constructed_url and constructed_url != final_url else ''
-        final_result['redirected_url'] = final_url
-
-
+        final_result['redirected_url'] = final_url if bool(redirect_chain_list) else ''
 
         if 'is_doc_page' not in final_result:
             final_result['is_doc_page'] = False
