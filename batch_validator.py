@@ -31,31 +31,21 @@ def run_batch_validation():
     logging.info(f"Starting batch validation for services in '{input_csv}'...")
     logging.info(f"Loaded {len(available_types)} service type definition(s).")
 
-    # Detect delimiter based on the first line
+    # Open the file once: detect delimiter from the first line then seek back to start.
     with open(input_csv, mode='r', encoding='utf-8') as infile:
         first_line = infile.readline()
         delimiter = ';' if ';' in first_line else ','
+
+        # Count data rows (total lines minus the header) for progress reporting.
+        total_rows = sum(1 for _ in infile)  # header was already consumed, so this counts data rows
         infile.seek(0)
-        
+
         reader = csv.DictReader(infile, delimiter=delimiter)
         fieldnames = reader.fieldnames
 
-        # Count total rows for progress indication
-        # We need to re-open or seek, but since we are iterating reader above, let's just read all rows into list first?
-        # Or just re-open for counting.
-        pass
-
-    # Re-open to process
-    with open(input_csv, mode='r', encoding='utf-8') as infile:
-        # Count lines first
-        total_rows = sum(1 for _ in infile) - 1
-        infile.seek(0)
-        
-        reader = csv.DictReader(infile, delimiter=delimiter)
-        
         for i, row in enumerate(reader):
             url = row.get('endpoint')
-            
+
             # Strict Validation Logic
             service_title = row.get('serviceTitle', '')
             # Use the shared static method for mapping
@@ -65,26 +55,15 @@ def run_batch_validation():
                 logging.warning(f"Row {i + 1}: No URL found. Skipping.")
                 continue
 
-            msg = f"[{i + 1}/{total_rows}] Validating: {url} (Strict: {expected_type})"
-            logging.info(msg)
-
             if not expected_type:
-                 # Strict Mode Enforcement: Cannot proceed without a known type
-                logging.warning(f"Row {i + 1}: Skipping '{url}' - Unknown Service Type for '{service_title}'")
-                output_row = row.copy()
-                output_row.update({
-                    "valid": False, 
-                    "error": f"Unknown/Unmapped Service Title: '{service_title}'",
-                    "mapped_service_type": "N/A"
-                })
-                # Add empty placeholders for other fields to match CSV structure?
-                # Actually, validate_url returns a structure. Let's call it and let it error?
-                # The validator now returns an error dict if expected_type is None.
-                # So we can just call it with None and let it handle the error return.
-                pass 
+                # validate_url with expected_type=None returns a clean error dict
+                # ('Strict Mode Required'), so we simply log and fall through.
+                logging.warning(f"Row {i + 1}: Unknown Service Type for '{service_title}' — will be recorded as an error.")
 
-            # The validator now returns a complete, final dictionary.
-            # If expected_type is None, it will return the "Strict Mode Required" error.
+            logging.info(f"[{i + 1}/{total_rows}] Validating: {url} (Strict: {expected_type})")
+
+            # The validator returns a complete, final dictionary for all cases,
+            # including when expected_type is None or unknown.
             result = validator.validate_url(url, expected_type=expected_type)
 
             # Combine original row data with the complete validation result

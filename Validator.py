@@ -108,12 +108,16 @@ class ServiceValidator:
 
 
 
-    def _classify_html_response(self, response, url, is_recovery_attempt=False, expected_mime=None):
+    def _classify_html_response(self, response, url, expected_mime=None):
         """
         Scans a text/html response for decommissioned or documentation keywords.
-        Returns a dict with 'valid', 'is_doc_page', and optional 'note' and 'error' 
+        Returns a dict with 'valid', 'is_doc_page', and optional 'note' and 'error'
         values that the caller should use to override its default validation results.
         Returns None if it's just generic HTML and standard validation should continue.
+
+        Note: doc-page detection is always active. In earlier designs there was an
+        'is_recovery_attempt' flag here that skipped doc-page detection on fallback
+        requests, but that concept is no longer used in the current call graph.
         """
         received_mime = response.headers.get('Content-Type', '').lower()
         if 'text/html' not in received_mime:
@@ -125,29 +129,25 @@ class ServiceValidator:
         if any(keyword in response_text_lower for keyword in self.decommissioned_keywords):
             self.logger.warning(f"Detected decommissioned service page at {url}.")
             return {
-                "valid": False, "is_doc_page": False, 
+                "valid": False, "is_doc_page": False,
                 "error": "Service is decommissioned/migrated.",
                 "note": "Endpoint is a documentation page for a decommissioned/migrated service."
             }
 
-        # 2. Check for API documentation page
-        # We check this even if we aren't recovering, as a doc page means it's not the raw endpoint.
-        # But if it's a recovery attempt, we might have explicitly sought a doc page, so we skip marking it invalid here
-        # or handle it based on the caller's context. Usually, doc pages are invalid service endpoints.
-        if not is_recovery_attempt:
-             if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
-                 self.logger.info(f"Detected API documentation page on {url}. Marking as INVALID (Documentation Page).")
-                 
-                 # Construct a helpful note based on expectations
-                 note = "Invalid endpoint: Received HTML (API documentation page). Status 200 OK suggests service is likely active but URL is not a direct service endpoint."
-                 if expected_mime:
-                      note = f"Invalid endpoint: Received HTML (API documentation page) instead of expected {expected_mime}. Status 200 OK suggests service is likely active but URL is not a direct service endpoint."
-                      
-                 return {
-                     "valid": False, "is_doc_page": True,
-                     "note": note
-                 }
-                 
+        # 2. Check for API documentation page (always checked; doc pages are never valid service endpoints)
+        if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
+            self.logger.info(f"Detected API documentation page on {url}. Marking as INVALID (Documentation Page).")
+
+            # Construct a helpful note based on expectations
+            note = "Invalid endpoint: Received HTML (API documentation page). Status 200 OK suggests service is likely active but URL is not a direct service endpoint."
+            if expected_mime:
+                note = f"Invalid endpoint: Received HTML (API documentation page) instead of expected {expected_mime}. Status 200 OK suggests service is likely active but URL is not a direct service endpoint."
+
+            return {
+                "valid": False, "is_doc_page": True,
+                "note": note
+            }
+
         return None
 
     def _build_redirect_chain_info(self, response):
@@ -230,23 +230,23 @@ class ServiceValidator:
         if not url:
             return {"valid": False, "error": "Empty URL"}
 
-        # Check Expected Type First
+        # Check Expected Type First — abort early to avoid unnecessary network requests (SV-REQ-001)
         if not expected_type:
             return {
                 "valid": False,
                 "error": "Strict Mode Required: No expected service type provided.",
                 "url": url,
-                "auth_required": "unknown",
-                "final_url": url
+                "auth_required": "Unknown",
+                "redirected_url": url
             }
-            
+
         if expected_type not in self.protocol_configs:
             return {
-                "valid": False, 
-                "error": f"Unknown Service Type: '{expected_type}'", 
-                "url": url, 
-                "auth_required": "unknown",
-                "final_url": url
+                "valid": False,
+                "error": f"Unknown Service Type: '{expected_type}'",
+                "url": url,
+                "auth_required": "Unknown",
+                "redirected_url": url
             }
 
         # Prepare Headers with specific Accept if expected_type is provided
@@ -262,19 +262,19 @@ class ServiceValidator:
         try:
             main_response = requests.get(url, headers=current_headers, timeout=self.timeout, allow_redirects=True)
             
-            # Derive Auth Requirement from the request chain
+            # Derive Auth Requirement from the request chain.
+            # Values follow the spec: 'Yes' | 'No' | 'Unknown'.
             auth_required = 'No'
             if main_response.status_code in [401, 403]:
-                 auth_required = 'required'
-            # Note: The requests library might internally negotiate auth challenges (like Digest) 
-            # and append the initial 401/403 to the history of a subsequent successful request.
-            # While this script never provides credentials so negotiation won't succeed,
-            # this check acts as a theoretical safeguard against unexpected server redirects after a 401.
+                auth_required = 'Yes'
+            # Note: The requests library may append a 401/403 to the history before
+            # following a redirect on certain servers. We check the first history entry
+            # as a safeguard, even though we never supply credentials ourselves.
             elif main_response.history and main_response.history[0].status_code in [401, 403]:
-                 auth_required = 'required'
+                auth_required = 'Yes'
                  
         except requests.RequestException as e:
-            return {"valid": False, "error": str(e), "url": url, "auth_required": "unknown"}
+            return {"valid": False, "error": str(e), "url": url, "auth_required": "Unknown"}
 
         final_url = main_response.url
         detected_type = expected_type
@@ -390,27 +390,24 @@ class ServiceValidator:
         expected_mime = config['accept']
 
         constructed_url = self._construct_probe_url(final_url, suffix)
-        
-        request_failed = False
+
         if constructed_url != final_url:
+            # A new, more specific URL was constructed — make a fresh request against it.
             try:
                 response = requests.get(constructed_url, headers=headers_to_use, timeout=self.timeout)
             except requests.RequestException as e:
-                request_failed = True
                 return {"valid": False, "error": str(e), "url": constructed_url}
-        
-        # If status code indicates failure (e.g. 404, 500)
-        # We no longer fall back to checking the original URL because we already checked
-        # the original URL in `validate_url` *before* getting here.
-        if not (200 <= response.status_code < 400):
-             pass # Will just be processed as an invalid result below
+        # else: constructed_url == final_url means the suffix was empty and no new URL
+        # could be built. We fall through using the `response` object that was passed in
+        # (the original response from validate_url). This avoids a redundant request and
+        # will naturally produce an invalid result since the initial strict check already failed.
 
         is_valid = 200 <= response.status_code < 400
         received_mime = response.headers.get('Content-Type', '').lower()
-        
+
         # --- HTML Based Fallbacks (Decommissioned / Doc Page) for the Constructed/Final URL ---
         is_doc_page = False
-        html_classification = self._classify_html_response(response, constructed_url, is_recovery_attempt, expected_mime)
+        html_classification = self._classify_html_response(response, constructed_url, expected_mime)
         
         if html_classification:
              is_valid = html_classification.get('valid', False)
@@ -449,7 +446,7 @@ class ServiceValidator:
         note = None
         is_doc_page = False # Default for generic check
 
-        html_classification = self._classify_html_response(response, final_url)
+        html_classification = self._classify_html_response(response, final_url)  # no expected_mime for generic check
         if html_classification:
              is_valid = html_classification.get('valid', False)
              is_doc_page = html_classification.get('is_doc_page', False)
