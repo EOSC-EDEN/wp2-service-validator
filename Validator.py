@@ -457,11 +457,23 @@ class ServiceValidator:
         if is_valid:
             if not self._is_strict_content_match(response, api_type, config):
                  is_valid = False
+                 # Distinguish between a CT mismatch and a body-signature failure.
+                 # For 'require_both' types (FTP, NetCDF) the CT matches but body patterns may not,
+                 # which previously produced the confusing message "expected text/html, got text/html".
+                 ct_actually_matched = (
+                     received_mime and expected_mime and
+                     any(t.strip() in received_mime for t in expected_mime.split(','))
+                 )
+                 if ct_actually_matched:
+                     err = (f"Body signature check failed for '{api_type}': Content-Type '{received_mime}' matched, "
+                            f"but response body did not contain expected service-specific markers.")
+                 else:
+                     err = f"Invalid Content-Type: expected '{expected_mime}' for '{api_type}', got '{received_mime}'."
                  return {
                      "valid": is_valid, "status_code": response.status_code, "content_type": received_mime,
                      "url": constructed_url, "expected_content_type": expected_mime,
-                     "error": f"Invalid Content-Type or Body Signature: expected '{expected_mime}' format for '{api_type}', got '{received_mime}'",
-                     "is_doc_page": is_doc_page # Pass the flag even if invalid
+                     "error": err,
+                     "is_doc_page": is_doc_page
                  }
 
         return {
