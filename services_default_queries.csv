@@ -58,4 +58,4 @@ IVOA-VOSpace;https://www.ivoa.net/documents/VOSpace;VOSpace, the IVOA interface 
 IVOA-VOSpace;https://doi.org/10.5479/ADS/bib/2018ivoa.spec.0621G;VOSpace, the IVOA interface to distributed storage;doc;;;;;;;;;;;
 ;;;;;;;REST;;;;;;;
 NetCDF;https://www.unidata.ucar.edu/software/netcdf/;NetCDF (OPeNDAP);doc;;;{endpointURI}.html;GET;;text/html;HTML;OPeNDAP;;;200
-FTP;https://datatracker.ietf.org/doc/html/rfc959;File Transfer Protocol;doc;;;;GET;;text/html;HTML;ftp;;;200
+FTP;https://datatracker.ietf.org/doc/html/rfc959;File Transfer Protocol;doc;;;;;;;HTML;ftp;;;200

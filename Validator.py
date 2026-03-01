@@ -3,6 +3,8 @@ import os
 import csv
 import logging
 import json
+import ftplib
+import urllib.parse
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,8 +57,8 @@ class ServiceValidator:
                 for row in reader:
                     api_type = row.get('Acronym')
                     if api_type and api_type.strip():
-                        suffix = row.get('default query', '')
-                        accept = row.get('accept', '')
+                        suffix = row.get('default query', '').strip()
+                        accept = row.get('accept', '').strip()
                         
                         current_config = {
                             'suffix': suffix,
@@ -149,6 +151,109 @@ class ServiceValidator:
             }
 
         return None
+
+    def _is_http_wrapped_ftp(self, response):
+        """
+        Returns True if an HTTP response looks like an FTP-style directory listing
+        served over HTTP (e.g. Apache mod_autoindex or a web-fronted FTP archive).
+        These pages have Content-Type text/html but contain characteristic FTP-index
+        markers in the body.  They are NOT valid FTP endpoints.
+        """
+        received_mime = response.headers.get('Content-Type', '').lower()
+        if 'text/html' not in received_mime:
+            return False
+        text = response.text[:50000].lower()
+        ftp_html_markers = [
+            'index of /', 'ftp directory', '[to parent directory]', 'parent directory'
+        ]
+        return any(marker in text for marker in ftp_html_markers)
+
+    def _validate_ftp_url(self, url, expected_type=None):
+        """
+        Validates a real ftp:// URL using ftplib.
+
+        Note on status codes: FTP uses its own 3-digit reply-code system (e.g. 220
+        for service ready, 230 for login OK, 550 for no such file).  These are NOT
+        HTTP status codes.  To keep the result dict consistent with the rest of the
+        validator we synthesise HTTP-like values: 200 for a successful connection /
+        directory listing, and 550 (borrowing the FTP 'file unavailable' reply code
+        as the closest meaningful analog) for a failed one.
+        """
+        parsed = urllib.parse.urlparse(url)
+        host = parsed.hostname
+        port = parsed.port or 21
+        path = parsed.path or '/'
+
+        base_result = {
+            "url": url,
+            "redirected_url": "",
+            "constructed_url": "",
+            "content_type": "ftp",
+            "expected_content_type": "ftp",
+            "is_doc_page": False,
+            "had_redirect": False,
+            "redirects": [],
+            "redirect_chain": "",
+        }
+
+        # Determine auth requirement from URL credentials
+        if parsed.username and parsed.username.lower() != 'anonymous':
+            auth_required = 'Yes'
+        else:
+            auth_required = 'No'
+        base_result['auth_required'] = auth_required
+
+        try:
+            ftp = ftplib.FTP(timeout=self.timeout)
+            ftp.connect(host, port)
+            ftp.login()  # anonymous login; credentials in URL are intentionally ignored for now
+            try:
+                ftp.nlst(path)  # list the target path to confirm it exists
+            except ftplib.error_perm as list_err:
+                # 550 = No such file or directory — path doesn't exist but server is up
+                self.logger.warning(f"FTP path '{path}' not found on {host}: {list_err}")
+                ftp.quit()
+                return {
+                    **base_result,
+                    "valid": False,
+                    "status_code": 550,  # synthesised: FTP 'file unavailable' reply code
+                    "error": f"FTP path not found: {list_err}",
+                }
+            ftp.quit()
+            self.logger.info(f"FTP connection and directory listing succeeded for {url}")
+            return {
+                **base_result,
+                "valid": True,
+                "status_code": 200,  # synthesised: represents a successful FTP connection + listing
+                "note": "FTP endpoint validated: anonymous connection and directory listing succeeded.",
+            }
+
+        except ftplib.error_perm as e:
+            # 530 = login incorrect / authentication required
+            code = str(e)[:3]
+            if code == '530':
+                self.logger.info(f"FTP server at {host} requires authentication.")
+                return {
+                    **base_result,
+                    "valid": False,
+                    "status_code": 550,  # synthesised
+                    "auth_required": "Yes",
+                    "error": f"FTP authentication required: {e}",
+                }
+            return {
+                **base_result,
+                "valid": False,
+                "status_code": 550,  # synthesised
+                "error": f"FTP permission error: {e}",
+            }
+        except ftplib.all_errors as e:
+            self.logger.warning(f"FTP connection failed for {url}: {e}")
+            return {
+                **base_result,
+                "valid": False,
+                "status_code": 550,  # synthesised
+                "error": f"FTP connection error: {e}",
+            }
 
     def _build_redirect_chain_info(self, response):
         """Builds a list of redirect steps with status code and destination URL."""
@@ -279,6 +384,10 @@ class ServiceValidator:
             # Ensure we have a valid mime type str
             current_headers['Accept'] = f"{specific_accept};q=1.0, text/html;q=0.9, */*;q=0.8"
 
+        # Route real ftp:// URLs to the dedicated FTP validator — requests cannot handle them.
+        if url.lower().startswith('ftp://'):
+            return self._validate_ftp_url(url, expected_type)
+
         try:
             main_response = requests.get(url, headers=current_headers, timeout=self.timeout, allow_redirects=True)
             
@@ -298,6 +407,32 @@ class ServiceValidator:
 
         final_url = main_response.url
         detected_type = expected_type
+
+        # --- Step 0: HTTP-Wrapped FTP Detection ---
+        # For FTP-type endpoints, detect the common case where a server exposes its FTP
+        # archive as an HTML directory listing over HTTP (e.g. Apache mod_autoindex).
+        # This check runs first so the response is never counted as a valid FTP endpoint.
+        if expected_type == 'FTP' and self._is_http_wrapped_ftp(main_response):
+            self.logger.info(f"URL '{final_url}' is an HTTP-wrapped FTP directory listing. Marking as invalid.")
+            return {
+                "valid": False,
+                "status_code": main_response.status_code,
+                "content_type": main_response.headers.get('Content-Type', '').lower(),
+                "url": url,
+                "redirected_url": final_url,
+                "constructed_url": "",
+                "expected_content_type": config.get('accept'),
+                "auth_required": auth_required,
+                "is_doc_page": False,
+                "redirects": self._build_redirect_chain_info(main_response),
+                "had_redirect": bool(main_response.history),
+                "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in self._build_redirect_chain_info(main_response)]),
+                "note": (
+                    "Invalid FTP endpoint: URL returns an HTTP-wrapped FTP directory listing "
+                    "(text/html served over HTTP), not a true FTP endpoint. "
+                    "If an ftp:// URL is available, register that instead."
+                ),
+            }
 
         # --- Step 1: Doc Page / Decommissioned Check ---
         # This MUST run before the strict content match. A documentation page about a technology
@@ -460,6 +595,8 @@ class ServiceValidator:
                  # Distinguish between a CT mismatch and a body-signature failure.
                  # For 'require_both' types (FTP, NetCDF) the CT matches but body patterns may not,
                  # which previously produced the confusing message "expected text/html, got text/html".
+                 # For FTP specifically, accept is empty (ftp:// URLs use ftplib, not HTTP CT matching),
+                 # so a plain "expected '' for 'FTP'" message would be cryptic.
                  ct_actually_matched = (
                      received_mime and expected_mime and
                      any(t.strip() in received_mime for t in expected_mime.split(','))
@@ -467,6 +604,10 @@ class ServiceValidator:
                  if ct_actually_matched:
                      err = (f"Body signature check failed for '{api_type}': Content-Type '{received_mime}' matched, "
                             f"but response body did not contain expected service-specific markers.")
+                 elif not expected_mime and api_type == 'FTP':
+                     err = (f"Invalid FTP endpoint: URL returned '{received_mime}' over HTTP but does not appear to be "
+                            f"an HTTP-wrapped FTP directory listing. "
+                            f"Use an ftp:// URL for a real FTP server, or verify the URL is correct.")
                  else:
                      err = f"Invalid Content-Type: expected '{expected_mime}' for '{api_type}', got '{received_mime}'."
                  return {
