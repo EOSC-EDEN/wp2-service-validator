@@ -16,7 +16,8 @@ OpenAPI;https://spec.openapis.org/oas/v3.0.3;OpenAPI Specification;doc;;;{endpoi
 OpenAPI;https://spec.openapis.org/oas/v2.0;OpenAPI Specification;doc;;;{endpointURI}/openapi.json;;;application/json;JSON;openapi;;;
 IIIF Search API;https://iiif.io/api/search/2.0/;IIIF Content Search API;doc;;;{endpointURI};;;application/json;JSON;;;;The API should return a JSON error doc 
 IIIF Presentation API;https://iiif.io/api/presentation/3.0/;IIIF Presentation API;doc;;;{endpointURI};;;application/json;JSON;;;;
-LDN;https://www.w3.org/TR/ldn/;Linked Data Notifications;doc;;;;;;;;;;;
+LDN;https://www.w3.org/TR/ldn/;Linked Data Notifications;doc;;;{endpointURI};GET;;application/ld+json;JSON-LD;ldp:contains;http://www.w3.org/ns/ldp#;200;"Inbox URL discovered via HEAD/GET on target: Link header rel=""http://www.w3.org/ns/ldp#inbox"". GET on Inbox returns JSON-LD listing notifications via ldp:contains. POST to Inbox sends notification (Content-Type: application/ld+json) 201 Created or 202 Accepted."
+LDN;http://www.w3.org/ns/ldp#;Linked Data Platform (LDP) namespace used by LDN;namespace;;;;;;;;;;;
 OpenSearch;https://github.com/dewitt/opensearch/blob/master/opensearch-1-1-draft-6.md;Open Search;doc;;;;;;;;;;;
 OpenSearch;http://www.opensearch.org/Specifications/OpenSearch/1.1;Open Search;doc;;;;;;;;;;;
 OpenSearch;http://a9.com/-/spec/opensearch/1.1/;Open Search;namespace;;;;;;;;;;;

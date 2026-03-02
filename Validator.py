@@ -308,6 +308,9 @@ class ServiceValidator:
             'FTP': ['index of /', 'ftp directory', '[to parent directory]', 'parent directory'],
             # NetCDF/OPeNDAP dataset pages expose these characteristic identifiers:
             'NetCDF': ['opendap', 'thredds', 'netcdf', '.nc"', 'das', 'dds'],
+            # LDN inbox responses carry the LDP context and list notifications via ldp:contains.
+            # Both compact JSON-LD ("contains":) and full IRI forms are matched.
+            'LDN': ['"http://www.w3.org/ns/ldp"', 'ldp#contains', '"contains":', 'ldp:contains', 'ldp#inbox'],
         }
 
         type_patterns = patterns.get(expected_type, [])
@@ -408,7 +411,34 @@ class ServiceValidator:
         final_url = main_response.url
         detected_type = expected_type
 
-        # --- Step 0: HTTP-Wrapped FTP Detection ---
+        # --- Step 0a: LDN Inbox — 405 Method Not Allowed ---
+        # Per the LDN spec (section 3.3), receivers MUST support GET and POST on the Inbox URL.
+        # However, many real-world implementations (e.g. DSpace 7 with COAR Notify) restrict
+        # unauthenticated GET, returning 405. A 405 still confirms the inbox exists.
+        if expected_type == 'LDN' and main_response.status_code == 405:
+            self.logger.info(f"LDN inbox at '{final_url}' returned 405 — inbox confirmed but GET requires auth.")
+            redirect_chain_list = self._build_redirect_chain_info(main_response)
+            return {
+                "valid": True,
+                "status_code": 405,
+                "content_type": main_response.headers.get('Content-Type', '').lower(),
+                "url": url,
+                "redirected_url": final_url if bool(redirect_chain_list) else '',
+                "constructed_url": '',
+                "expected_content_type": config.get('accept'),
+                "auth_required": 'Yes',
+                "is_doc_page": False,
+                "redirects": redirect_chain_list,
+                "had_redirect": bool(redirect_chain_list),
+                "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list]),
+                "note": (
+                    "LDN Inbox confirmed (405 Method Not Allowed): the inbox endpoint exists "
+                    "but listing notifications via GET requires authentication. "
+                    "POST (sending notifications) may be publicly available."
+                ),
+            }
+
+        # --- Step 0b: HTTP-Wrapped FTP Detection ---
         # For FTP-type endpoints, detect the common case where a server exposes its FTP
         # archive as an HTML directory listing over HTTP (e.g. Apache mod_autoindex).
         # This check runs first so the response is never counted as a valid FTP endpoint.
@@ -549,9 +579,120 @@ class ServiceValidator:
              # Let's replicate that logic but cleaner
              return f"{base_url.rstrip('/')}{separator if suffix.startswith('?') else '/'}{suffix.lstrip('?/ ')}"
 
+    def _extract_ldn_inbox_url(self, response):
+        """
+        Attempts to discover an LDN Inbox URL from a response by inspecting:
+        1. The HTTP Link header for rel="http://www.w3.org/ns/ldp#inbox".
+        2. The response body for an RDF/HTML ldp:inbox relation (basic pattern match).
+        Returns the discovered inbox URL string, or None if not found.
+        """
+        import re
+        from urllib.parse import urljoin
+
+        # 1. Check Link header — most common and most reliable discovery mechanism.
+        # Example: Link: <https://example.org/inbox/>; rel="http://www.w3.org/ns/ldp#inbox"
+        link_header = response.headers.get('Link', '')
+        if link_header:
+            for part in link_header.split(','):
+                part = part.strip()
+                if 'ldp#inbox' in part.lower():
+                    url_part = part.split(';')[0].strip()
+                    if url_part.startswith('<') and url_part.endswith('>'):
+                        candidate = url_part[1:-1].strip()
+                        return urljoin(response.url, candidate)
+
+        # 2. Scan body for ldp:inbox (JSON-LD compact, Turtle, or HTML/RDFa).
+        text = response.text[:50000]
+
+        # JSON-LD compact form: "inbox": "<url>"
+        jld_match = re.search(r'"inbox"\s*:\s*"([^"]+)"', text)
+        if jld_match:
+            return urljoin(response.url, jld_match.group(1))
+
+        # Turtle / expanded IRI form: ldp:inbox <url> or <ldp:inbox> <url>
+        ttl_match = re.search(r'ldp:inbox\s+<([^>]+)>', text)
+        if ttl_match:
+            return urljoin(response.url, ttl_match.group(1))
+
+        # HTML/RDFa: href="..." rel="http://www.w3.org/ns/ldp#inbox"
+        html_match = re.search(
+            r'href=["\']([^"\']+)["\'][^>]*rel=["\']http://www\.w3\.org/ns/ldp#inbox["\']',
+            text, re.IGNORECASE
+        )
+        if not html_match:
+            html_match = re.search(
+                r'rel=["\']http://www\.w3\.org/ns/ldp#inbox["\'][^>]*href=["\']([^"\']+)["\']',
+                text, re.IGNORECASE
+            )
+        if html_match:
+            return urljoin(response.url, html_match.group(1))
+
+        return None
+
     def _check_specific_http(self, response, final_url, config, api_type, is_recovery_attempt, headers_to_use, main_response=None):
         suffix = config['suffix']
         expected_mime = config['accept']
+
+        # --- LDN Discovery Fallback ---
+        # If type is LDN and the initial request did not return a JSON-LD inbox, attempt to
+        # discover the Inbox URL via the Link header or body of the response. This handles
+        # the case where the user provides a "target resource" URL (e.g. a profile page or
+        # article) rather than a direct inbox URL.
+        if api_type == 'LDN':
+            inbox_url = self._extract_ldn_inbox_url(response)
+            if inbox_url:
+                self.logger.info(f"LDN Inbox discovered via Link header/body from '{final_url}': '{inbox_url}'")
+                try:
+                    inbox_response = requests.get(inbox_url, headers=headers_to_use, timeout=self.timeout)
+                except requests.RequestException as e:
+                    return {"valid": False,
+                            "error": f"LDN inbox discovered at '{inbox_url}' but GET failed: {e}",
+                            "url": inbox_url, "expected_content_type": expected_mime, "is_doc_page": False}
+
+                # A 405 on the discovered inbox still confirms the inbox exists
+                if inbox_response.status_code == 405:
+                    return {
+                        "valid": True,
+                        "status_code": 405,
+                        "content_type": inbox_response.headers.get('Content-Type', '').lower(),
+                        "url": inbox_url,
+                        "expected_content_type": expected_mime,
+                        "is_doc_page": False,
+                        "note": (
+                            f"LDN Inbox discovered via Link header/body from '{final_url}' \u2192 '{inbox_url}'. "
+                            "Inbox confirmed (405): exists but GET listing requires authentication."
+                        ),
+                    }
+
+                if self._is_strict_content_match(inbox_response, api_type, config):
+                    return {
+                        "valid": True,
+                        "status_code": inbox_response.status_code,
+                        "content_type": inbox_response.headers.get('Content-Type', '').lower(),
+                        "url": inbox_url,
+                        "expected_content_type": expected_mime,
+                        "is_doc_page": False,
+                        "note": (
+                            f"LDN Inbox discovered via Link header/body from target "
+                            f"resource '{final_url}' \u2192 '{inbox_url}'."
+                        ),
+                    }
+                else:
+                    discovered_mime = inbox_response.headers.get('Content-Type', '').lower()
+                    return {
+                        "valid": False,
+                        "status_code": inbox_response.status_code,
+                        "content_type": discovered_mime,
+                        "url": inbox_url,
+                        "expected_content_type": expected_mime,
+                        "is_doc_page": False,
+                        "error": (
+                            f"LDN Inbox discovered at '{inbox_url}' but response did not match "
+                            f"expected content or LDN body signatures (got '{discovered_mime}')."
+                        ),
+                    }
+            else:
+                self.logger.info(f"LDN discovery: no inbox link found in response from '{final_url}'.")
 
         constructed_url = self._construct_probe_url(final_url, suffix)
 
