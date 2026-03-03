@@ -1,0 +1,1586 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "meta": {
+        "version": "1.0.0",
+        "description": "EDEN Service Validator — unified service profiles and global keyword lists. This file is the single source of truth, replacing services_default_queries.csv, validation_config.json, and the hardcoded 'patterns' dict in Validator.py."
+    },
+    "global": {
+        "_comment": "Cross-cutting keyword lists used by _classify_html_response(). Formerly in validation_config.json.",
+        "api_doc_keywords": [
+            "swagger-ui",
+            "id=\"swagger-ui\"",
+            "rest api",
+            "api documentation",
+            "api reference",
+            "developer guide",
+            "endpoints",
+            "usage guide",
+            "how to use",
+            "getting started",
+            "authentication",
+            "rate limits",
+            "data formats",
+            "query parameters",
+            "response codes",
+            "error handling",
+            "sdk",
+            "client library",
+            "restful api",
+            "soap api",
+            "graphql api",
+            "openapi specification",
+            "wsdl",
+            "asyncapi",
+            "raml",
+            "api console",
+            "postman",
+            "curl",
+            "example request",
+            "example response",
+            "netcdf",
+            "opendap",
+            "data access"
+        ],
+        "decommissioned_keywords": [
+            "no longer accessible",
+            "migrated to",
+            "decommissioned",
+            "service unavailable",
+            "discontinued",
+            "retired",
+            "deprecated",
+            "shut down",
+            "end of life",
+            "not available",
+            "moved to",
+            "new location"
+        ]
+    },
+    "service_profiles": {
+        "OAI-PMH": {
+            "title": "Open Archives Initiative - Protocol for Metadata Harvesting",
+            "fairsharing_doi": "https://doi.org/10.25504/FAIRsharing.0417cf",
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.openarchives.org/OAI/openarchivesprotocol.html",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://www.openarchives.org/OAI/2.0/",
+                    "role": "namespace"
+                }
+            ],
+            "probe": {
+                "suffix": "?verb=Identify",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [
+                    200
+                ],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "<oai-pmh",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "xmlns:oai",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "oai:identifier",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "<oai_dc:dc",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "xmlns:oai_dc",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<OAI-PMH>",
+                "distinctive_namespace": "http://www.openarchives.org/OAI/2.0/",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": null
+        },
+        "Static OAI": {
+            "title": "OAI Static Repository",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.openarchives.org/OAI/2.0/guidelines-static-repository.htm",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [
+                    200
+                ],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "<oai-pmh",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "xmlns:oai",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "oai:identifier",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "<oai_dc:dc",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "xmlns:oai_dc",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<OAI-PMH>",
+                "distinctive_namespace": "http://www.openarchives.org/OAI/2.0/",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "A static XML file, not a live OAI-PMH server. The base URL should point directly to the static repository XML file."
+        },
+        "REST": {
+            "title": "Representational State Transfer",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "application/json",
+                "expected_status_codes": [
+                    200,
+                    400
+                ],
+                "result_format": "JSON"
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "Generic REST endpoint. A 400 Bad Request on the base URL is acceptable — it indicates the server is live and responding to REST-style requests, even if the root path requires parameters."
+        },
+        "OpenDAP": {
+            "title": "OpenDAP",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://docs.opendap.org/index.php/Home",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "<html xmlns:bes=\"http://xml.opendap.org/ns/bes/1.0#\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": null,
+                "distinctive_namespace": "http://xml.opendap.org/ns/bes/1.0#",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": null
+        },
+        "THREDDS": {
+            "title": "THREDDS Data Server",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.unidata.ucar.edu/software/tds/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "/catalog.xml",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "<catalog",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<catalog",
+                "distinctive_namespace": "http://www.unidata.ucar.edu/namespaces/thredds/InvCatalog/v1.0",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": null
+        },
+        "ERDDAP": {
+            "title": "ERDDAP",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://coastwatch.pfeg.noaa.gov/erddap/index.html",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "/index.json",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": "JSON"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "\"table\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "table",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "ERDDAP's /index.json returns a JSON object with a 'table' key listing all datasets."
+        },
+        "SPARQL": {
+            "title": "SPARQL Query Language",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.w3.org/TR/sparql11-query/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "application/rdf+xml",
+                "expected_status_codes": [],
+                "result_format": "RDF"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "<rdf:rdf",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "sparql-results",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<rdf:RDF",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": null
+        },
+        "SOAP": {
+            "title": "Simple Object Access Protocol",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.w3.org/TR/soap/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "?wsdl",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "wsdl:definitions",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "<definitions",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "http://schemas.xmlsoap.org/wsdl/",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": null,
+                "distinctive_namespace": "http://schemas.xmlsoap.org/wsdl/",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "Appending '?wsdl' to a SOAP endpoint URL typically returns the WSDL service description."
+        },
+        "SWORD": {
+            "title": "Simple Web-service Offering Repository Deposit",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "http://swordapp.org/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "application/json",
+                "expected_status_codes": [
+                    200,
+                    401
+                ],
+                "result_format": "JSON"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "\"services\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "services",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "SWORD is primarily for depositing content and will often be behind an auth wall. A 401 Unauthorized is expected and indicates the endpoint is live."
+        },
+        "Sitemaps": {
+            "title": "Sitemaps XML format",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.sitemaps.org/protocol.html",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://www.sitemaps.org/schemas/sitemap/0.9",
+                    "role": "namespace"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "<urlset",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "sitemaps.org/schemas/sitemap",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<urlset",
+                "distinctive_namespace": "http://www.sitemaps.org/schemas/sitemap/0.9",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": null
+        },
+        "OpenAPI": {
+            "title": "OpenAPI Specification",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://spec.openapis.org/oas/v3.1.0",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://spec.openapis.org/oas/v3.0.3",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://spec.openapis.org/oas/v2.0",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "/openapi.json",
+                "method": "GET",
+                "accept": "application/json",
+                "expected_status_codes": [],
+                "result_format": "JSON"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "\"openapi\"",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "swagger",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "\"paths\":",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "openapi",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "Tries /openapi.json on the endpoint base URL. Multiple spec versions (2.0, 3.0.x, 3.1.x) are all captured by the same body signatures."
+        },
+        "IIIF Search API": {
+            "title": "IIIF Content Search API",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://iiif.io/api/search/2.0/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "application/json",
+                "expected_status_codes": [],
+                "result_format": "JSON"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "iiif.io/api/search",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "\"@context\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "The API should return a JSON error document (e.g. a IIIF error manifest) when queried without parameters. Body signatures are tentative and may need refinement with real examples."
+        },
+        "IIIF Presentation API": {
+            "title": "IIIF Presentation API",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://iiif.io/api/presentation/3.0/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "application/json",
+                "expected_status_codes": [],
+                "result_format": "JSON"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "iiif.io/api/presentation",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "\"@context\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "Body signatures are tentative and may need refinement with real examples."
+        },
+        "LDN": {
+            "title": "Linked Data Notifications",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.w3.org/TR/ldn/",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://www.w3.org/ns/ldp#",
+                    "role": "namespace"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "application/ld+json",
+                "expected_status_codes": [
+                    200,
+                    405
+                ],
+                "result_format": "JSON-LD"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "\"http://www.w3.org/ns/ldp\"",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "ldp#contains",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "\"contains\":",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "ldp:contains",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "ldp#inbox",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "ldp:contains",
+                "distinctive_namespace": "http://www.w3.org/ns/ldp#",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": true,
+                "ldn_inbox_discovery": true,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "Inbox URL discovered via HEAD/GET on target resource: Link header rel=\"http://www.w3.org/ns/ldp#inbox\". GET on Inbox returns JSON-LD listing notifications via ldp:contains. POST to Inbox sends notification (Content-Type: application/ld+json); expects 201 Created or 202 Accepted. A 405 Method Not Allowed on the inbox itself is accepted as valid — it confirms the inbox exists but GET requires authentication."
+        },
+        "OpenSearch": {
+            "title": "Open Search",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://github.com/dewitt/opensearch/blob/master/opensearch-1-1-draft-6.md",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://www.opensearch.org/Specifications/OpenSearch/1.1",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://a9.com/-/spec/opensearch/1.1/",
+                    "role": "namespace"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "RSS": {
+            "title": "Really Simple Syndication",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.rssboard.org/rss-specification",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "application/rss+xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "<rss",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "<channel",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<rss",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": null
+        },
+        "ATOM": {
+            "title": "The Atom Syndication Format",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.ietf.org/rfc/rfc4287.txt",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "application/atom+xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "<feed",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "xmlns=\"http://www.w3.org/2005/atom\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<feed",
+                "distinctive_namespace": "http://www.w3.org/2005/Atom",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": null
+        },
+        "FAIRiCat": {
+            "title": "FAIRiCat: Supporting Discovery of a Repository's Interoperability Affordances",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://signposting.org/FAIRiCat/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "LAS": {
+            "title": "Live Access Server",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://ferret.pmel.noaa.gov/LAS/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "AMPQ": {
+            "title": "Advanced Message Queuing Protocol",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.amqp.org/resources/specifications",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: AMQP is a binary wire protocol; HTTP-based probing is not applicable. Validation strategy TBD."
+        },
+        "MQTT": {
+            "title": "Message Queuing Telemetry Transport",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://mqtt.org/mqtt-specification/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: MQTT is a TCP-based binary protocol; HTTP-based probing is not applicable. Validation strategy TBD."
+        },
+        "XMPP": {
+            "title": "Extensible Messaging and Presence Protocol",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://datatracker.ietf.org/doc/rfc6120/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: XMPP is an XML-stream TCP protocol; HTTP-based probing is not applicable. Validation strategy TBD."
+        },
+        "TAPIR": {
+            "title": "TDWG Access Protocol for Information Retrieval",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.tdwg.org/standards/tapir/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "DIGIR": {
+            "title": "Distributed Generic Information Retrieval",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://sourceforge.net/projects/digir/",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://digir.net/schema/protocol/2003/1.0",
+                    "role": "namespace"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": "http://digir.net/schema/protocol/2003/1.0",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "OGC-CSW": {
+            "title": "OGC Catalogue Service for the Web",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "http://www.opengis.net/def/serviceType/ogc/csw",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://www.ogc.org/standard/cat/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "?service=CSW&version=2.0.2&request=GetCapabilities",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "csw:capabilities",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "service=\"csw\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "csw:Capabilities",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "Probe suffix is a suggested GetCapabilities query — body signatures come from Validator.py."
+        },
+        "OGC-WMS": {
+            "title": "OGC Web Map Service",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "http://www.opengis.net/def/serviceType/ogc/wms",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://www.ogc.org/standards/wms",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "?service=WMS&version=1.3.0&request=GetCapabilities",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "wms_capabilities",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "service=\"wms\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "WMS_Capabilities",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "Body signatures come from Validator.py."
+        },
+        "OGC-WMTS": {
+            "title": "OpenGIS Web Map Tile Service",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.ogc.org/standard/wmts/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "?service=WMTS&version=1.0.0&request=GetCapabilities",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "wmts_capabilities",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "service=\"wmts\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "Capabilities",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe suffix and body signatures are inferred from the OGC pattern — to be verified with real endpoints."
+        },
+        "OGC-WFS": {
+            "title": "OGC Web Feature Service",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "http://www.opengis.net/def/serviceType/ogc/wfs",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://www.ogc.org/standards/wfs",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "?service=WFS&version=2.0.0&request=GetCapabilities",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "wfs:wfscapabilities",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "service=\"wfs\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "WFS_Capabilities",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Body signatures inferred — to be verified with real endpoints."
+        },
+        "OGC-SOS": {
+            "title": "OGC Sensor Observation Service",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "http://www.opengis.net/def/serviceType/ogc/sos",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://www.ogc.org/standards/sos",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "?service=SOS&version=2.0.0&request=GetCapabilities",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "sos:capabilities",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "service=\"sos\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "Capabilities",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Body signatures inferred — to be verified with real endpoints."
+        },
+        "OGC-WCS": {
+            "title": "OGC Web Coverage Service",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "http://www.opengis.net/def/serviceType/ogc/wcs",
+                    "role": "doc"
+                },
+                {
+                    "url": "http://www.ogc.org/standards/wcs",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "?service=WCS&version=2.0.1&request=GetCapabilities",
+                "method": "GET",
+                "accept": "text/xml",
+                "expected_status_codes": [],
+                "result_format": "XML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "wcs:capabilities",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "service=\"wcs\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "Capabilities",
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Body signatures inferred — to be verified with real endpoints."
+        },
+        "IVOA-SCS": {
+            "title": "Simple Cone Search",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.ivoa.net/documents/cover/ConeSearch-20080222.html",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://doi.org/10.5479/ADS/bib/2008ivoa.specQ0222P",
+                    "role": "doc"
+                },
+                {
+                    "url": "ivo://ivoa.net/std/ConeSearch",
+                    "role": "identifier"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "IVOA-SIA": {
+            "title": "Simple Image Access",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "ivo://ivoa.net/std/SIA",
+                    "role": "identifier"
+                },
+                {
+                    "url": "https://www.ivoa.net/documents/SIA/",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://doi.org/10.5479/ADS/bib/2015ivoa.spec.1223D",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "IVOA-SSA": {
+            "title": "Simple Spectral Access",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.ivoa.net/documents/SSA/",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://doi.org/10.5479/ADS/bib/2012ivoa.spec.0210T",
+                    "role": "doc"
+                },
+                {
+                    "url": "ivo://ivoa.net/std/SSA",
+                    "role": "identifier"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "IVOA-SLAP": {
+            "title": "Simple Line Access Protocol",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.ivoa.net/documents/SLAP/",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://doi.org/10.5479/ADS/bib/2010ivoa.specQ1209O",
+                    "role": "doc"
+                },
+                {
+                    "url": "ivo://ivoa.net/std/SLAP",
+                    "role": "identifier"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "IVOA-TAP": {
+            "title": "Table Access Protocol",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.ivoa.net/documents/TAP/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "IVOA-VOSpace": {
+            "title": "VOSpace, the IVOA interface to distributed storage",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.ivoa.net/documents/VOSpace",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://doi.org/10.5479/ADS/bib/2018ivoa.spec.0621G",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "",
+                "expected_status_codes": [],
+                "result_format": ""
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+        },
+        "NetCDF": {
+            "title": "NetCDF (OPeNDAP)",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://www.unidata.ucar.edu/software/netcdf/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": ".html",
+                "method": "GET",
+                "accept": "text/html",
+                "expected_status_codes": [
+                    200
+                ],
+                "result_format": "HTML"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "opendap",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "thredds",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "netcdf",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": ".nc\"",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "das",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "dds",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": true
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "text/html is too generic to trust alone. Both Content-Type AND at least one body signature must match to avoid false positives (require_body_and_ct: true). The .html suffix is appended because OPeNDAP dataset pages expose DAS/DDS metadata at that path."
+        },
+        "FTP": {
+            "title": "File Transfer Protocol",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://datatracker.ietf.org/doc/html/rfc959",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": null,
+                "accept": "",
+                "expected_status_codes": [
+                    200
+                ],
+                "result_format": "FTP"
+            },
+            "validation": {
+                "body_signatures": [],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": true,
+                "use_ftp_validator": true
+            },
+            "comment": "Real ftp:// URLs are validated via ftplib, not HTTP requests (use_ftp_validator: true). HTTP URLs that return an FTP-style directory listing (Apache mod_autoindex, etc.) are flagged as invalid (detect_http_wrapped_ftp: true). Status codes for FTP are synthesised HTTP-like values: 200 = successful connection + directory listing, 550 = path not found or connection error."
+        }
+    }
+}

@@ -1,6 +1,6 @@
-﻿import requests
+﻿import re
+import requests
 import os
-import csv
 import logging
 import json
 import ftplib
@@ -21,74 +21,40 @@ class ServiceValidator:
             'User-Agent': 'EDEN-Endpoint-Validator/1.0',
                           'Accept': '*/*',  # initially accept any header
         }
-        self.protocol_configs = self._load_service_mappings()
-        self._load_validation_config()
-
-    def _load_validation_config(self):
-        """Loads validation keywords from a JSON configuration file."""
-        config_path = os.path.join(os.path.dirname(__file__), 'validation_config.json')
-
         self.api_doc_keywords = []
         self.decommissioned_keywords = []
+        self.protocol_configs = self._load_profiles()
 
+    def _load_profiles(self):
+        """
+        Single loader for service_profiles.json — the unified source of truth.
+        Replaces both _load_service_mappings() (CSV) and _load_validation_config() (JSON).
+        Populates:
+          - self.protocol_configs  : dict of acronym -> full profile object
+          - self.api_doc_keywords  : list of HTML keyword strings (formerly validation_config.json)
+          - self.decommissioned_keywords : list of HTML keyword strings (formerly validation_config.json)
+        """
+        profiles = {}
+        profile_path = os.path.join(os.path.dirname(__file__), 'service_profiles.json')
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                self.api_doc_keywords = config.get('api_doc_keywords', [])
-                self.decommissioned_keywords = config.get('decommissioned_keywords', [])
-                self.logger.info(f"Loaded validation configuration from {config_path}")
+            with open(profile_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            g = data.get('global', {})
+            self.api_doc_keywords = g.get('api_doc_keywords', [])
+            self.decommissioned_keywords = g.get('decommissioned_keywords', [])
+            profiles = data.get('service_profiles', {})
+            self.logger.info(f"Loaded {len(profiles)} service profiles from {profile_path}")
         except FileNotFoundError:
-            self.logger.error(f"Fatal: Validation config file not found at {config_path}. Keyword detection will be disabled.")
-        except json.JSONDecodeError:
-            self.logger.error(f"Fatal: Error parsing {config_path}. Keyword detection will be disabled.")
-
-    def _load_service_mappings(self):
-        """Loads the service mappings from the CSV file."""
-        mappings = {}
-        csv_path = os.path.join(os.path.dirname(__file__), 'services_default_queries.csv')
-        try:
-            with open(csv_path, mode='r', encoding='utf-8') as infile:
-                # Detect delimiter based on the first line
-                first_line = infile.readline()
-                delimiter = ';' if ';' in first_line else ','
-                infile.seek(0)
-                
-                reader = csv.DictReader(infile, delimiter=delimiter)
-                for row in reader:
-                    api_type = row.get('Acronym')
-                    if api_type and api_type.strip():
-                        suffix = row.get('default query', '').strip()
-                        accept = row.get('accept', '').strip()
-                        
-                        current_config = {
-                            'suffix': suffix,
-                            'accept': accept
-                        }
-                        
-                        if api_type not in mappings:
-                            mappings[api_type] = current_config
-                        else:
-                            # Conflict resolution for duplicate Acronyms:
-                            # 1. Prefer entries with an 'accept' header.
-                            # 2. If neither has 'accept', prefer entries with a non-empty 'suffix'.
-                            existing = mappings[api_type]
-                            
-                            if accept:
-                                # New entry has accept header -> Overwrite (upgrade or replace)
-                                mappings[api_type] = current_config
-                            elif existing['accept']:
-                                # Existing has accept, new one doesn't -> Keep existing
-                                pass
-                            elif suffix:
-                                # Neither has accept, but new one has suffix -> Overwrite (upgrade)
-                                mappings[api_type] = current_config
-                            else:
-                                # New one has neither -> Keep existing
-                                pass
-
-        except FileNotFoundError:
-            self.logger.error(f"Fatal: Service mapping file not found at {csv_path}")
-        return mappings
+            self.logger.error(
+                f"Fatal: service_profiles.json not found at {profile_path}. "
+                "Validation will not function correctly."
+            )
+        except json.JSONDecodeError as e:
+            self.logger.error(
+                f"Fatal: Error parsing {profile_path}: {e}. "
+                "Validation will not function correctly."
+            )
+        return profiles
 
     @staticmethod
     def map_service_type(service_title, available_types):
@@ -278,7 +244,7 @@ class ServiceValidator:
         Returns True if either condition is met (relaxed strictness).
         """
         received_mime = response.headers.get('Content-Type', '').lower()
-        expected_mime = config.get('accept', '').lower()
+        expected_mime = config.get('probe', {}).get('accept', '').lower()
 
         # 1. Check Content-Type
         ct_match = False
@@ -288,52 +254,50 @@ class ServiceValidator:
             if any(t.strip() in received_mime for t in expected_mime.split(',')):
                 ct_match = True
             else:
-                 self.logger.debug(f"Strict Content-Type match failed: '{received_mime}' != '{expected_mime}'")
+                self.logger.debug(f"Strict Content-Type match failed: '{received_mime}' != '{expected_mime}'")
 
-        # 2. Check Body Patterns (Bonus Confirmation or Fallback)
+        # 2. Check Body Signatures (loaded from service_profiles.json: validation.body_signatures).
+        # Each signature has a 'pattern' and a 'mode' ('substring' or 'regex').
+        # A single match is sufficient to set body_match = True.
         body_match = False
-        text = response.text[:50000].lower()
+        text_full = response.text[:50000]
+        text_lower = text_full.lower()
 
-        patterns = {
-            'OAI-PMH': ['<oai-pmh', 'xmlns:oai', 'oai:identifier', '<oai_dc:dc', 'xmlns:oai_dc'],
-            'SPARQL': ['<rdf:rdf', 'sparql-results'],
-            'OpenAPI': ['"openapi"', 'swagger', '"paths":'],
-            'RSS': ['<rss', '<channel'],
-            'ATOM': ['<feed', 'xmlns="http://www.w3.org/2005/atom"'],
-            'OGC-WMS': ['wms_capabilities', 'service="wms"'],
-            'OGC-CSW': ['csw:capabilities', 'service="csw"'],
-            # FTP and NetCDF use text/html (too generic to trust alone) -- see require_both below.
-            # FTP: only FTP-specific phrases; generic terms like 'name'/'size'/'last modified'
-            # were removed as they also appear on plain directory listing pages.
-            'FTP': ['index of /', 'ftp directory', '[to parent directory]', 'parent directory'],
-            # NetCDF/OPeNDAP dataset pages expose these characteristic identifiers:
-            'NetCDF': ['opendap', 'thredds', 'netcdf', '.nc"', 'das', 'dds'],
-            # LDN inbox responses carry the LDP context and list notifications via ldp:contains.
-            # Both compact JSON-LD ("contains":) and full IRI forms are matched.
-            'LDN': ['"http://www.w3.org/ns/ldp"', 'ldp#contains', '"contains":', 'ldp:contains', 'ldp#inbox'],
-        }
-
-        type_patterns = patterns.get(expected_type, [])
-        if type_patterns:
-            if any(p in text for p in type_patterns):
-                body_match = True
+        signatures = config.get('validation', {}).get('body_signatures', [])
+        if signatures:
+            for sig in signatures:
+                pattern = sig.get('pattern', '')
+                mode = sig.get('mode', 'substring')
+                if not pattern:
+                    continue
+                if mode == 'regex':
+                    if re.search(pattern, text_full, re.IGNORECASE):
+                        body_match = True
+                        break
+                else:  # 'substring' — case-insensitive via pre-lowercased text
+                    if pattern.lower() in text_lower:
+                        body_match = True
+                        break
+            if body_match:
                 self.logger.info(f"Strict match confirmed via body signature for '{expected_type}'.")
             else:
                 self.logger.debug(f"Body signature match failed for '{expected_type}'.")
 
         # Validation Logic:
         # Most types: either a CT match OR a body signature match is sufficient.
-        # However, some types use a generic accept type (e.g. text/html for FTP and NetCDF)
-        # that would match virtually any web page. For these, we require BOTH conditions
-        # to be true simultaneously to avoid false positives.
-        require_both = {'FTP', 'NetCDF'}
+        # When require_body_and_ct is true in the profile (e.g. NetCDF uses text/html —
+        # too generic to trust alone), BOTH must match to avoid false positives.
+        require_both = config.get('validation', {}).get('require_body_and_ct', False)
 
-        if expected_type in require_both:
+        if require_both:
             # Strict: both CT and body must match
             if ct_match and body_match:
                 return True
             if ct_match and not body_match:
-                self.logger.debug(f"'{expected_type}' requires body signature confirmation (generic accept type), but body check failed.")
+                self.logger.debug(
+                    f"'{expected_type}' requires body signature confirmation "
+                    f"(require_body_and_ct: true), but body check failed."
+                )
             return False
 
         # Standard "either/or" logic for all other types:
@@ -347,13 +311,12 @@ class ServiceValidator:
 
         return False
 
-    def validate_url(self, url, is_recovery_attempt=False, expected_type=None):
+    def validate_url(self, url, expected_type=None):
         """
         Validates a URL with strict type checking logic:
         1. Initial Check: Request original URL with type-specific Accept header.
            - If strictly matches (Status 200 + Content-Type + Body Pattern) -> VALID.
-        2. Fallback: If initial check fails, try constructing service URL (Magic).
-        3. Documentation Fallback: If all else fails, check for documentation page.
+        2. Fallback: If initial check fails, try constructing the service URL (Magic).
         """
         if not url:
             return {"valid": False, "error": "Empty URL"}
@@ -382,7 +345,7 @@ class ServiceValidator:
         config = self.protocol_configs.get(expected_type)
         # Construct Accept header with q-values
         # e.g., "application/xml;q=1.0, text/html;q=0.9, */*;q=0.8"
-        specific_accept = config.get('accept')
+        specific_accept = config.get('probe', {}).get('accept', '')
         if specific_accept:
             # Ensure we have a valid mime type str
             current_headers['Accept'] = f"{specific_accept};q=1.0, text/html;q=0.9, */*;q=0.8"
@@ -415,8 +378,8 @@ class ServiceValidator:
         # Per the LDN spec (section 3.3), receivers MUST support GET and POST on the Inbox URL.
         # However, many real-world implementations (e.g. DSpace 7 with COAR Notify) restrict
         # unauthenticated GET, returning 405. A 405 still confirms the inbox exists.
-        if expected_type == 'LDN' and main_response.status_code == 405:
-            self.logger.info(f"LDN inbox at '{final_url}' returned 405 — inbox confirmed but GET requires auth.")
+        if config.get('special', {}).get('accept_405_as_valid') and main_response.status_code == 405:
+            self.logger.info(f"Endpoint at '{final_url}' returned 405 — inbox/endpoint confirmed but GET requires auth.")
             redirect_chain_list = self._build_redirect_chain_info(main_response)
             return {
                 "valid": True,
@@ -425,7 +388,7 @@ class ServiceValidator:
                 "url": url,
                 "redirected_url": final_url if bool(redirect_chain_list) else '',
                 "constructed_url": '',
-                "expected_content_type": config.get('accept'),
+                "expected_content_type": config.get('probe', {}).get('accept', ''),
                 "auth_required": 'Yes',
                 "is_doc_page": False,
                 "redirects": redirect_chain_list,
@@ -438,11 +401,11 @@ class ServiceValidator:
                 ),
             }
 
-        # --- Step 0b: HTTP-Wrapped FTP Detection ---
+        # --- Step 0: HTTP-Wrapped FTP Detection ---
         # For FTP-type endpoints, detect the common case where a server exposes its FTP
         # archive as an HTML directory listing over HTTP (e.g. Apache mod_autoindex).
         # This check runs first so the response is never counted as a valid FTP endpoint.
-        if expected_type == 'FTP' and self._is_http_wrapped_ftp(main_response):
+        if config.get('special', {}).get('detect_http_wrapped_ftp') and self._is_http_wrapped_ftp(main_response):
             self.logger.info(f"URL '{final_url}' is an HTTP-wrapped FTP directory listing. Marking as invalid.")
             return {
                 "valid": False,
@@ -451,7 +414,7 @@ class ServiceValidator:
                 "url": url,
                 "redirected_url": final_url,
                 "constructed_url": "",
-                "expected_content_type": config.get('accept'),
+                "expected_content_type": config.get('probe', {}).get('accept', ''),
                 "auth_required": auth_required,
                 "is_doc_page": False,
                 "redirects": self._build_redirect_chain_info(main_response),
@@ -470,7 +433,7 @@ class ServiceValidator:
         # for in body signatures, causing false positives if we check body patterns first.
         # By classifying HTML pages here first, we ensure that any page that looks like a doc or
         # decommissioned notice is rejected immediately, before the body signature check can fire.
-        initial_html_classification = self._classify_html_response(main_response, final_url, expected_mime=config.get('accept'))
+        initial_html_classification = self._classify_html_response(main_response, final_url, expected_mime=config.get('probe', {}).get('accept', ''))
         if initial_html_classification:
             self.logger.info(f"Initial URL '{final_url}' was classified as an invalid HTML page (Doc/Decommissioned). Skipping strict match and magic URL construction.")
             core_result = {
@@ -478,7 +441,7 @@ class ServiceValidator:
                  "status_code": main_response.status_code,
                  "content_type": main_response.headers.get('Content-Type', '').lower(),
                  "url": final_url,
-                 "expected_content_type": config.get('accept'),
+                 "expected_content_type": config.get('probe', {}).get('accept', ''),
                  "is_doc_page": initial_html_classification.get('is_doc_page', False)
             }
             if 'error' in initial_html_classification: core_result['error'] = initial_html_classification['error']
@@ -500,7 +463,7 @@ class ServiceValidator:
                     "url": url, # Original URL was valid
                     "redirected_url": final_url,
                     "constructed_url": '', # No construction needed
-                    "expected_content_type": config.get('accept'),
+                    "expected_content_type": config.get('probe', {}).get('accept', ''),
                     "auth_required": auth_required,
                     "note": "Initial URL validation successful.",
                     "redirects": redirect_chain_list,
@@ -514,12 +477,12 @@ class ServiceValidator:
             # Try constructing the specific service URL by appending the known suffix.
             else:
                 self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
-                core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, current_headers, main_response=main_response)
+                core_result = self._check_specific_http(main_response, final_url, config, detected_type, current_headers, main_response=main_response)
 
         else:
             # Non-2xx/3xx response and not an HTML doc page — pass through to magic URL construction.
             self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
-            core_result = self._check_specific_http(main_response, final_url, config, detected_type, is_recovery_attempt, current_headers, main_response=main_response)
+            core_result = self._check_specific_http(main_response, final_url, config, detected_type, current_headers, main_response=main_response)
 
         # --- Assemble the final, complete result dictionary ---
         final_result = core_result.copy()
@@ -629,16 +592,16 @@ class ServiceValidator:
 
         return None
 
-    def _check_specific_http(self, response, final_url, config, api_type, is_recovery_attempt, headers_to_use, main_response=None):
-        suffix = config['suffix']
-        expected_mime = config['accept']
+    def _check_specific_http(self, response, final_url, config, api_type, headers_to_use, main_response=None):
+        suffix = config.get('probe', {}).get('suffix', '')
+        expected_mime = config.get('probe', {}).get('accept', '')
 
         # --- LDN Discovery Fallback ---
         # If type is LDN and the initial request did not return a JSON-LD inbox, attempt to
         # discover the Inbox URL via the Link header or body of the response. This handles
         # the case where the user provides a "target resource" URL (e.g. a profile page or
         # article) rather than a direct inbox URL.
-        if api_type == 'LDN':
+        if config.get('special', {}).get('ldn_inbox_discovery'):
             inbox_url = self._extract_ldn_inbox_url(response)
             if inbox_url:
                 self.logger.info(f"LDN Inbox discovered via Link header/body from '{final_url}': '{inbox_url}'")
