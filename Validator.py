@@ -28,11 +28,11 @@ class ServiceValidator:
     def _load_profiles(self):
         """
         Single loader for service_profiles.json — the unified source of truth.
-        Replaces both _load_service_mappings() (CSV) and _load_validation_config() (JSON).
         Populates:
-          - self.protocol_configs  : dict of acronym -> full profile object
-          - self.api_doc_keywords  : list of HTML keyword strings (formerly validation_config.json)
-          - self.decommissioned_keywords : list of HTML keyword strings (formerly validation_config.json)
+          - self.protocol_configs     : dict of acronym -> full profile object
+          - self.spec_url_index       : dict of spec URL -> acronym (for conformsTo resolution)
+          - self.api_doc_keywords     : list of HTML keyword strings
+          - self.decommissioned_keywords : list of HTML keyword strings
         """
         profiles = {}
         profile_path = os.path.join(os.path.dirname(__file__), 'service_profiles.json')
@@ -54,6 +54,16 @@ class ServiceValidator:
                 f"Fatal: Error parsing {profile_path}: {e}. "
                 "Validation will not function correctly."
             )
+
+        # Build reverse-lookup index: spec URL (normalised, no trailing slash) -> acronym.
+        # Covers both 'doc' and 'namespace' roles so either kind of conformsTo URL resolves.
+        self.spec_url_index = {}
+        for acronym, profile in profiles.items():
+            for entry in profile.get('spec_urls', []):
+                url = entry.get('url', '').rstrip('/')
+                if url:
+                    self.spec_url_index[url] = acronym
+
         return profiles
 
     @staticmethod
@@ -64,15 +74,120 @@ class ServiceValidator:
         """
         if not service_title:
             return None
-        
         title_lower = service_title.lower()
-        
         # Sort available types by length (descending) to match specific first (e.g. OGC-WMS before OGC)
         for acr in sorted(available_types, key=len, reverse=True):
             if acr.lower() in title_lower:
                 return acr
-                
         return None
+
+    @staticmethod
+    def resolve_type_from_conforms_to(conforms_to_url, spec_url_index):
+        """
+        Resolves a dct:conformsTo URL to a known service-type acronym by looking it
+        up in the pre-built spec_url_index (built from service_profiles.json spec_urls).
+
+        Both 'doc' and 'namespace' role URLs are indexed, so either kind can match.
+        Trailing slashes are stripped before comparison.
+
+        Args:
+            conforms_to_url : str|None  – the raw dct:conformsTo value from the RDF store
+            spec_url_index  : dict      – maps normalised spec URL -> acronym
+
+        Returns:
+            str|None – acronym (e.g. 'OAI-PMH') or None if not resolved
+        """
+        if not conforms_to_url or not spec_url_index:
+            return None
+        normalised = conforms_to_url.rstrip('/')
+        return spec_url_index.get(normalised)
+
+    def _count_body_sigs_in_text(self, text, config):
+        """
+        Count how many body signatures defined in a profile match the given text.
+
+        Returns:
+            (hit: int, total: int)  – number matched and total signatures defined.
+            Returns (0, 0) if no signatures are defined for this profile.
+        """
+        signatures = config.get('validation', {}).get('body_signatures', [])
+        total = len(signatures)
+        if total == 0:
+            return 0, 0
+
+        text_lower = text[:50000].lower()
+        text_full = text[:50000]
+        hit = 0
+        for sig in signatures:
+            pattern = sig.get('pattern', '')
+            mode = sig.get('mode', 'substring')
+            if not pattern:
+                continue
+            if mode == 'regex':
+                if re.search(pattern, text_full, re.IGNORECASE):
+                    hit += 1
+            else:
+                if pattern.lower() in text_lower:
+                    hit += 1
+        return hit, total
+
+    def _calculate_score(
+        self,
+        status_code,
+        expected_mime,
+        received_mime,
+        conforms_to_matched,
+        service_title_matched,
+        body_sig_hit,
+        body_sig_total,
+    ):
+        """
+        Calculate a 0.0–10.0 confidence score for a validation result.
+
+        Scoring breakdown (max 10 pts):
+          3 pts – HTTP status code 200–399
+          2 pts – dct:conformsTo resolved to this profile
+          2 pts – returned MIME matches expected MIME
+          2 pts – body signatures matched (partial credit: hit/total × 2)
+          1 pt  – serviceTitle present and matches this profile
+
+        Args:
+            status_code          : int|None
+            expected_mime        : str  – from profile probe.accept
+            received_mime        : str  – from response Content-Type
+            conforms_to_matched  : bool – was conformsTo resolved to this profile?
+            service_title_matched: bool – did serviceTitle map to this profile?
+            body_sig_hit         : int  – number of signatures matched
+            body_sig_total       : int  – total signatures defined
+
+        Returns:
+            float rounded to 2 decimal places, range 0.0–10.0
+        """
+        score = 0.0
+
+        # 1. Status code (3 pts)
+        if status_code is not None and 200 <= status_code < 400:
+            score += 3.0
+
+        # 2. conformsTo resolved (2 pts)
+        if conforms_to_matched:
+            score += 2.0
+
+        # 3. MIME match (2 pts)
+        if expected_mime and received_mime:
+            expected_parts = [t.strip() for t in expected_mime.split(',')]
+            if any(part in received_mime for part in expected_parts):
+                score += 2.0
+
+        # 4. Body signatures partial credit (2 pts)
+        if body_sig_total > 0:
+            score += round((body_sig_hit / body_sig_total) * 2.0, 2)
+
+        # 5. serviceTitle matched (1 pt)
+        if service_title_matched:
+            score += 1.0
+
+        return round(min(score, 10.0), 2)
 
 
 
@@ -311,24 +426,33 @@ class ServiceValidator:
 
         return False
 
-    def validate_url(self, url, expected_type=None):
+    def validate_url(self, url, expected_type=None, conforms_to=None, service_title=None):
         """
         Validates a URL with strict type checking logic:
-        1. Initial Check: Request original URL with type-specific Accept header.
+        1. Unsupported check: immediately return for profiles marked unsupported.
+        2. Initial GET: type-specific Accept header.
            - If strictly matches (Status 200 + Content-Type + Body Pattern) -> VALID.
-        2. Fallback: If initial check fails, try constructing the service URL (Magic).
+           - If 405, retry with POST (empty body) before other checks.
+        3. Fallback: construct the specific service URL (Magic URL).
+
+        Args:
+            url           : str       – endpoint URL to validate
+            expected_type : str|None  – service type acronym (required for strict mode)
+            conforms_to   : str|None  – raw dct:conformsTo URL (used only for scoring)
+            service_title : str|None  – original service title (used only for scoring)
         """
         if not url:
-            return {"valid": False, "error": "Empty URL"}
+            return {"valid": False, "error": "Empty URL", "score": 0.0}
 
-        # Check Expected Type First — abort early to avoid unnecessary network requests (SV-REQ-001)
+        # Check Expected Type First — abort early to avoid unnecessary network requests
         if not expected_type:
             return {
                 "valid": False,
                 "error": "Strict Mode Required: No expected service type provided.",
                 "url": url,
                 "auth_required": "Unknown",
-                "redirected_url": url
+                "redirected_url": url,
+                "score": 0.0,
             }
 
         if expected_type not in self.protocol_configs:
@@ -337,50 +461,133 @@ class ServiceValidator:
                 "error": f"Unknown Service Type: '{expected_type}'",
                 "url": url,
                 "auth_required": "Unknown",
-                "redirected_url": url
+                "redirected_url": url,
+                "score": 0.0,
             }
+
+        config = self.protocol_configs.get(expected_type)
+
+        # --- Unsupported profile early exit ---
+        if config.get('special', {}).get('unsupported'):
+            self.logger.info(
+                f"Service type '{expected_type}' is marked unsupported. Skipping validation."
+            )
+            return {
+                "valid": False,
+                "url": url,
+                "status_code": None,
+                "content_type": None,
+                "expected_content_type": config.get('probe', {}).get('accept', ''),
+                "auth_required": "Unknown",
+                "is_doc_page": False,
+                "had_redirect": False,
+                "redirects": [],
+                "redirect_chain": "",
+                "redirected_url": "",
+                "constructed_url": "",
+                "error": "Unsupported/Cannot be verified",
+                "note": (
+                    f"Service type '{expected_type}' is a file format or protocol that "
+                    "cannot be verified via HTTP requests."
+                ),
+                "score": 0.0,
+            }
+
+        # --- Pre-compute scoring context flags ---
+        # conforms_to_matched: True if caller supplied a conformsTo URL that resolves to this type
+        conforms_to_matched = (
+            conforms_to is not None
+            and self.resolve_type_from_conforms_to(conforms_to, self.spec_url_index) == expected_type
+        )
+        # service_title_matched: True if caller supplied a title that maps to this type
+        service_title_matched = (
+            service_title is not None
+            and self.map_service_type(service_title, list(self.protocol_configs.keys())) == expected_type
+        )
 
         # Prepare Headers with specific Accept if expected_type is provided
         current_headers = self.headers.copy()
-        config = self.protocol_configs.get(expected_type)
-        # Construct Accept header with q-values
-        # e.g., "application/xml;q=1.0, text/html;q=0.9, */*;q=0.8"
+        # Construct Accept header with q-values e.g. "application/xml;q=1.0, */*;q=0.8"
         specific_accept = config.get('probe', {}).get('accept', '')
         if specific_accept:
-            # Ensure we have a valid mime type str
             current_headers['Accept'] = f"{specific_accept};q=1.0, text/html;q=0.9, */*;q=0.8"
 
         # Route real ftp:// URLs to the dedicated FTP validator — requests cannot handle them.
         if url.lower().startswith('ftp://'):
-            return self._validate_ftp_url(url, expected_type)
+            result = self._validate_ftp_url(url, expected_type)
+            result['score'] = 0.0  # FTP scoring not implemented via HTTP criteria
+            return result
 
         try:
             main_response = requests.get(url, headers=current_headers, timeout=self.timeout, allow_redirects=True)
-            
+
+            # --- Universal POST retry on 405 Method Not Allowed ---
+            # If GET is blocked, try a POST with an empty body before any further checks.
+            # This is intentionally universal: 405 on GET is rare, and a POST probe tells
+            # us whether the endpoint is alive and processing requests at all.
+            if main_response.status_code == 405:
+                self.logger.info(
+                    f"GET returned 405 for '{url}'. Retrying with POST (empty body)."
+                )
+                try:
+                    post_response = requests.post(
+                        url,
+                        headers=current_headers,
+                        data='',
+                        timeout=self.timeout,
+                        allow_redirects=True,
+                    )
+                    # Only replace main_response if POST gave us something useful
+                    if post_response.status_code != 405:
+                        self.logger.info(
+                            f"POST to '{url}' returned {post_response.status_code} "
+                            "— using POST response for validation."
+                        )
+                        main_response = post_response
+                    else:
+                        self.logger.info(
+                            f"POST also returned 405 for '{url}'. Keeping GET response."
+                        )
+                except requests.RequestException as post_err:
+                    self.logger.warning(
+                        f"POST retry failed for '{url}': {post_err}. Keeping GET response."
+                    )
+
             # Derive Auth Requirement from the request chain.
-            # Values follow the spec: 'Yes' | 'No' | 'Unknown'.
             auth_required = 'No'
             if main_response.status_code in [401, 403]:
                 auth_required = 'Yes'
-            # Note: The requests library may append a 401/403 to the history before
-            # following a redirect on certain servers. We check the first history entry
-            # as a safeguard, even though we never supply credentials ourselves.
             elif main_response.history and main_response.history[0].status_code in [401, 403]:
                 auth_required = 'Yes'
-                 
+
         except requests.RequestException as e:
-            return {"valid": False, "error": str(e), "url": url, "auth_required": "Unknown"}
+            return {
+                "valid": False,
+                "error": str(e),
+                "url": url,
+                "auth_required": "Unknown",
+                "score": 0.0,
+            }
 
         final_url = main_response.url
         detected_type = expected_type
 
         # --- Step 0a: LDN Inbox — 405 Method Not Allowed ---
-        # Per the LDN spec (section 3.3), receivers MUST support GET and POST on the Inbox URL.
-        # However, many real-world implementations (e.g. DSpace 7 with COAR Notify) restrict
-        # unauthenticated GET, returning 405. A 405 still confirms the inbox exists.
+        # POST retry above already ran; if we're still at 405 here, the endpoint truly
+        # blocks both GET and POST without auth. For LDN that still confirms the inbox.
         if config.get('special', {}).get('accept_405_as_valid') and main_response.status_code == 405:
-            self.logger.info(f"Endpoint at '{final_url}' returned 405 — inbox/endpoint confirmed but GET requires auth.")
+            self.logger.info(f"Endpoint at '{final_url}' returned 405 — inbox/endpoint confirmed but requires auth.")
             redirect_chain_list = self._build_redirect_chain_info(main_response)
+            sig_hit, sig_total = self._count_body_sigs_in_text(main_response.text, config)
+            score = self._calculate_score(
+                status_code=405,
+                expected_mime=config.get('probe', {}).get('accept', ''),
+                received_mime=main_response.headers.get('Content-Type', '').lower(),
+                conforms_to_matched=conforms_to_matched,
+                service_title_matched=service_title_matched,
+                body_sig_hit=sig_hit,
+                body_sig_total=sig_total,
+            )
             return {
                 "valid": True,
                 "status_code": 405,
@@ -394,10 +601,10 @@ class ServiceValidator:
                 "redirects": redirect_chain_list,
                 "had_redirect": bool(redirect_chain_list),
                 "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list]),
+                "score": score,
                 "note": (
                     "LDN Inbox confirmed (405 Method Not Allowed): the inbox endpoint exists "
-                    "but listing notifications via GET requires authentication. "
-                    "POST (sending notifications) may be publicly available."
+                    "but listing notifications via GET and POST requires authentication."
                 ),
             }
 
@@ -453,23 +660,32 @@ class ServiceValidator:
         elif 200 <= main_response.status_code < 400:
             if self._is_strict_content_match(main_response, expected_type, config):
                 self.logger.info(f"Initial URL '{final_url}' strictly matches expected type '{expected_type}'. Skipping construction logic.")
-
                 redirect_chain_list = self._build_redirect_chain_info(main_response)
-
+                sig_hit, sig_total = self._count_body_sigs_in_text(main_response.text, config)
+                score = self._calculate_score(
+                    status_code=main_response.status_code,
+                    expected_mime=config.get('probe', {}).get('accept', ''),
+                    received_mime=main_response.headers.get('Content-Type', '').lower(),
+                    conforms_to_matched=conforms_to_matched,
+                    service_title_matched=service_title_matched,
+                    body_sig_hit=sig_hit,
+                    body_sig_total=sig_total,
+                )
                 return {
                     "valid": True,
                     "status_code": main_response.status_code,
                     "content_type": main_response.headers.get('Content-Type', '').lower(),
-                    "url": url, # Original URL was valid
+                    "url": url,
                     "redirected_url": final_url,
-                    "constructed_url": '', # No construction needed
+                    "constructed_url": '',
                     "expected_content_type": config.get('probe', {}).get('accept', ''),
                     "auth_required": auth_required,
                     "note": "Initial URL validation successful.",
                     "redirects": redirect_chain_list,
                     "had_redirect": bool(redirect_chain_list),
                     "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list]),
-                    "is_doc_page": False
+                    "is_doc_page": False,
+                    "score": score,
                 }
 
             # --- Step 3: "Magic" / Construction Fallback ---
@@ -495,15 +711,30 @@ class ServiceValidator:
         final_result['redirect_chain'] = " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list])
 
         # Handle URL keys for consistent output.
-        # 'constructed_url' is only set when URL construction/magic was used.
-        # 'redirected_url' is only set when at least one redirect actually occurred.
-        # Both are empty strings when not applicable, making them easy to filter on in the CSV.
         constructed_url = final_result.get('url', '')
         final_result['constructed_url'] = constructed_url if constructed_url and constructed_url != final_url else ''
         final_result['redirected_url'] = final_url if bool(redirect_chain_list) else ''
 
         if 'is_doc_page' not in final_result:
             final_result['is_doc_page'] = False
+
+        # --- Compute score if not already set (magic-URL / fallback paths) ---
+        if 'score' not in final_result:
+            # Use main_response text for body sig counting on the fallback paths.
+            # This is an approximation when a constructed URL was used, but keeps
+            # scoring logic simple and avoids threading response objects through
+            # the entire call stack.
+            resp_text_for_score = main_response.text
+            sig_hit, sig_total = self._count_body_sigs_in_text(resp_text_for_score, config)
+            final_result['score'] = self._calculate_score(
+                status_code=final_result.get('status_code'),
+                expected_mime=config.get('probe', {}).get('accept', ''),
+                received_mime=final_result.get('content_type', ''),
+                conforms_to_matched=conforms_to_matched,
+                service_title_matched=service_title_matched,
+                body_sig_hit=sig_hit,
+                body_sig_total=sig_total,
+            )
 
         return final_result
 

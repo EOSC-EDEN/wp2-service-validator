@@ -1542,12 +1542,13 @@
                 "require_body_and_ct": true
             },
             "special": {
+                "unsupported": true,
                 "accept_405_as_valid": false,
                 "ldn_inbox_discovery": false,
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "text/html is too generic to trust alone. Both Content-Type AND at least one body signature must match to avoid false positives (require_body_and_ct: true). The .html suffix is appended because OPeNDAP dataset pages expose DAS/DDS metadata at that path."
+            "comment": "UNSUPPORTED: NetCDF is a file format, not a network service protocol. It cannot be validated via HTTP requests. Marked unsupported so the validator returns 'Unsupported/Cannot be verified' gracefully. text/html is too generic to trust alone — original profile kept for reference."
         },
         "FTP": {
             "title": "File Transfer Protocol",

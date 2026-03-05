@@ -5,7 +5,7 @@ import uvicorn
 app = FastAPI(
     title="EDEN Endpoint Validator Service",
     description="A service to validate the status and content type of repository service endpoints.",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 # Initialize the validator once when the application starts
@@ -14,18 +14,38 @@ validator = ServiceValidator()
 @app.get("/validate", summary="Validate a single service endpoint")
 def validate_endpoint(
     url: str = Query(..., description="The full URL of the endpoint to validate."),
-    type: str = Query(None, description="The expected service type (e.g., OAI-PMH, NetCDF). Required for strict validation.")
+    type: str = Query(None, description="The expected service type acronym (e.g. OAI-PMH). Can be omitted if conforms_to resolves the type."),
+    conforms_to: str = Query(None, description="The dct:conformsTo URL from harvested RDF metadata. Used for type resolution and scoring."),
 ):
     """
     Validates a single service endpoint URL against a specific Service Type.
 
     - **url**: The URL of the service to check.
-    - **type**: The expected Service Type. Ideally provided by the user.
+    - **type**: The expected Service Type acronym. Can be omitted if **conforms_to** resolves to a known profile.
+    - **conforms_to**: Optional `dct:conformsTo` URL from harvested RDF metadata. Used for type resolution and scoring.
 
-    The system performs a strict validation based on the provided type.
+    The response includes a **score** (0–10) reflecting how many validation criteria were met.
     """
-    # Pass the type to the validator (Validator now enforces strict mode if type is missing)
-    result = validator.validate_url(url, expected_type=type)
+    # Resolve expected type: conforms_to URL takes priority, then explicit type param.
+    resolved_type = type
+    if conforms_to and not resolved_type:
+        resolved_type = ServiceValidator.resolve_type_from_conforms_to(
+            conforms_to, validator.spec_url_index
+        )
+
+    # Map free-text type to known acronym (e.g. "OAI-PMH API" -> "OAI-PMH")
+    if resolved_type:
+        available_types = list(validator.protocol_configs.keys())
+        mapped = ServiceValidator.map_service_type(resolved_type, available_types)
+        if mapped:
+            resolved_type = mapped
+
+    result = validator.validate_url(
+        url,
+        expected_type=resolved_type,
+        conforms_to=conforms_to,
+        service_title=type,  # original type string used for title-match scoring
+    )
     return result
 
 if __name__ == "__main__":
