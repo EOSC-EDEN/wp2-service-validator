@@ -5,11 +5,11 @@ This tool validates repository service endpoints (e.g., OAI-PMH, OpenAPI, REST, 
 It provides three modes of operation:
 1.  **Web Service (FastAPI):** A REST API to validate URLs on demand.
 2.  **CLI Tool:** A script to check a single URL from the command line.
-3.  **Batch Processor:** A script to natively query a Fuseki SPARQL store for harvested metadata and validate all endpoints at once.
+3.  **Batch Processor:** A script to natively query the Fuseki SPARQL store for harvested metadata and validate all endpoints at once.
 
 ## Features
 
-*   **Fuseki Integration:** Directly queries harmonized graphs in a Fuseki store to validate harvested metadata.
+*   **Fuseki Integration:** Directly queries harmonized graphs in the Fuseki store to validate harvested metadata.
 *   **Type Resolution via `dct:conformsTo`:** Intelligently maps specification URLs to known service types, falling back to fuzzy title matching if needed.
 *   **Confidence Scoring System:** Calculates a 0.0 to 10.0 score based on multiple criteria (HTTP status codes, `dct:conformsTo` matches, MIME types, body signatures).
 *   **Smart Fallbacks:** Automatically attempts POST requests for endpoints throwing 405 errors, and performs documentation page detection to prevent false negatives.
