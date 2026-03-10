@@ -171,6 +171,8 @@ def run_batch_validation():
             'serviceTitle': service_title or '',
             'endpoint': endpoint_url,
             'conforms_to': conforms_to or '',
+            'extracted_conforms_to': result.get('extracted_conforms_to', ''),
+            'conforms_to_verified': result.get('conforms_to_verified', ''),
             'mapped_service_type': expected_type or 'N/A',
             'resolution_method': resolution_method,
         }
@@ -199,6 +201,8 @@ def run_batch_validation():
         'serviceTitle',
         'endpoint',
         'conforms_to',
+        'extracted_conforms_to',
+        'conforms_to_verified',
         'mapped_service_type',
         'resolution_method',
         'valid',

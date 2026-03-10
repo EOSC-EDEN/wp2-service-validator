@@ -1,10 +1,11 @@
-﻿import re
+import re
 import requests
 import os
 import logging
 import json
 import ftplib
 import urllib.parse
+from urllib.parse import urljoin
 
 logging.basicConfig(
     level=logging.INFO,
@@ -140,6 +141,7 @@ class ServiceValidator:
         service_title_matched,
         body_sig_hit,
         body_sig_total,
+        extracted_conforms_to_delta=0,
     ):
         """
         Calculate a 0.0–10.0 confidence score for a validation result.
@@ -150,15 +152,17 @@ class ServiceValidator:
           2 pts – returned MIME matches expected MIME
           2 pts – body signatures matched (partial credit: hit/total × 2)
           1 pt  – serviceTitle present and matches this profile
+          +1/−2 – extracted spec URL bonus/penalty (match/mismatch/not_found)
 
         Args:
-            status_code          : int|None
-            expected_mime        : str  – from profile probe.accept
-            received_mime        : str  – from response Content-Type
-            conforms_to_matched  : bool – was conformsTo resolved to this profile?
-            service_title_matched: bool – did serviceTitle map to this profile?
-            body_sig_hit         : int  – number of signatures matched
-            body_sig_total       : int  – total signatures defined
+            status_code                   : int|None
+            expected_mime                 : str  – from profile probe.accept
+            received_mime                 : str  – from response Content-Type
+            conforms_to_matched           : bool – was conformsTo resolved to this profile?
+            service_title_matched         : bool – did serviceTitle map to this profile?
+            body_sig_hit                  : int  – number of signatures matched
+            body_sig_total                : int  – total signatures defined
+            extracted_conforms_to_delta   : int  – +1 (match), -2 (mismatch), 0 (not found)
 
         Returns:
             float rounded to 2 decimal places, range 0.0–10.0
@@ -187,7 +191,10 @@ class ServiceValidator:
         if service_title_matched:
             score += 1.0
 
-        return round(min(score, 10.0), 2)
+        # 6. Extracted spec URL bonus/penalty (+1 / -2 / 0)
+        score += extracted_conforms_to_delta
+
+        return round(min(max(score, 0.0), 10.0), 2)
 
 
 
@@ -198,9 +205,6 @@ class ServiceValidator:
         values that the caller should use to override its default validation results.
         Returns None if it's just generic HTML and standard validation should continue.
 
-        Note: doc-page detection is always active. In earlier designs there was an
-        'is_recovery_attempt' flag here that skipped doc-page detection on fallback
-        requests, but that concept is no longer used in the current call graph.
         """
         received_mime = response.headers.get('Content-Type', '').lower()
         if 'text/html' not in received_mime:
@@ -442,20 +446,33 @@ class ServiceValidator:
             service_title : str|None  – original service title (used only for scoring)
         """
         if not url:
-            return {"valid": False, "error": "Empty URL", "score": 0.0}
+            return {"valid": False, "error": "Empty URL", "score": 0.0, "extracted_conforms_to": ""}
 
         # Check Expected Type First — abort early to avoid unnecessary network requests
         if not expected_type:
+            extracted = ""
+            try:
+                resp = requests.get(url, headers=self.headers, timeout=self.timeout, allow_redirects=True)
+                extracted = self._extract_conforms_to_from_response(resp.text)
+            except Exception:
+                pass
             return {
                 "valid": False,
-                "error": "Strict Mode Required: No expected service type provided.",
+                "error": "No expected service type provided.",
                 "url": url,
                 "auth_required": "Unknown",
                 "redirected_url": url,
                 "score": 0.0,
+                "extracted_conforms_to": extracted,
             }
 
         if expected_type not in self.protocol_configs:
+            extracted = ""
+            try:
+                resp = requests.get(url, headers=self.headers, timeout=self.timeout, allow_redirects=True)
+                extracted = self._extract_conforms_to_from_response(resp.text)
+            except Exception:
+                pass
             return {
                 "valid": False,
                 "error": f"Unknown Service Type: '{expected_type}'",
@@ -463,6 +480,7 @@ class ServiceValidator:
                 "auth_required": "Unknown",
                 "redirected_url": url,
                 "score": 0.0,
+                "extracted_conforms_to": extracted,
             }
 
         config = self.protocol_configs.get(expected_type)
@@ -472,7 +490,7 @@ class ServiceValidator:
             self.logger.info(
                 f"Service type '{expected_type}' is marked unsupported. Skipping validation."
             )
-            return {
+            result = {
                 "valid": False,
                 "url": url,
                 "status_code": None,
@@ -491,7 +509,16 @@ class ServiceValidator:
                     "cannot be verified via HTTP requests."
                 ),
                 "score": 0.0,
+                "extracted_conforms_to": "",
             }
+            try:
+                resp = requests.get(url, headers=self.headers, timeout=self.timeout, allow_redirects=True)
+                result["extracted_conforms_to"] = self._extract_conforms_to_from_response(resp.text)
+                if resp.history:
+                    result["redirected_url"] = resp.url
+            except Exception as e:
+                self.logger.warning(f"Failed to fetch {url} for URL extraction: {e}")
+            return result
 
         # --- Pre-compute scoring context flags ---
         # conforms_to_matched: True if caller supplied a conformsTo URL that resolves to this type
@@ -567,16 +594,21 @@ class ServiceValidator:
                 "url": url,
                 "auth_required": "Unknown",
                 "score": 0.0,
+                "extracted_conforms_to": "",
             }
 
         final_url = main_response.url
-        detected_type = expected_type
+
+        # --- Evaluate extracted spec URLs early ---
+        # Compute once, use everywhere — available for all return paths below.
+        ect_eval = self._evaluate_extracted_conforms_to(main_response.text, expected_type)
 
         # --- Step 0a: LDN Inbox — 405 Method Not Allowed ---
-        # POST retry above already ran; if we're still at 405 here, the endpoint truly
-        # blocks both GET and POST without auth. For LDN that still confirms the inbox.
+        # POST retry above already ran; if we're still at 405 here, both GET and POST
+        # are rejected with 405 (Method Not Allowed). For LDN this still confirms the
+        # inbox exists — the server is responding, just not accepting these methods.
         if config.get('special', {}).get('accept_405_as_valid') and main_response.status_code == 405:
-            self.logger.info(f"Endpoint at '{final_url}' returned 405 — inbox/endpoint confirmed but requires auth.")
+            self.logger.info(f"Endpoint at '{final_url}' returned 405 — inbox/endpoint confirmed (Method Not Allowed).")
             redirect_chain_list = self._build_redirect_chain_info(main_response)
             sig_hit, sig_total = self._count_body_sigs_in_text(main_response.text, config)
             score = self._calculate_score(
@@ -587,6 +619,7 @@ class ServiceValidator:
                 service_title_matched=service_title_matched,
                 body_sig_hit=sig_hit,
                 body_sig_total=sig_total,
+                extracted_conforms_to_delta=ect_eval['score_delta'],
             )
             return {
                 "valid": True,
@@ -596,7 +629,7 @@ class ServiceValidator:
                 "redirected_url": final_url if bool(redirect_chain_list) else '',
                 "constructed_url": '',
                 "expected_content_type": config.get('probe', {}).get('accept', ''),
-                "auth_required": 'Yes',
+                "auth_required": 'Unknown',  # 405 = Method Not Allowed, not an auth error
                 "is_doc_page": False,
                 "redirects": redirect_chain_list,
                 "had_redirect": bool(redirect_chain_list),
@@ -604,8 +637,10 @@ class ServiceValidator:
                 "score": score,
                 "note": (
                     "LDN Inbox confirmed (405 Method Not Allowed): the inbox endpoint exists "
-                    "but listing notifications via GET and POST requires authentication."
+                    "but does not accept GET or POST on this URL (method not allowed by server)."
                 ),
+                "extracted_conforms_to": ect_eval['extracted_urls'],
+                "conforms_to_verified": ect_eval['status'],
             }
 
         # --- Step 0: HTTP-Wrapped FTP Detection ---
@@ -614,6 +649,7 @@ class ServiceValidator:
         # This check runs first so the response is never counted as a valid FTP endpoint.
         if config.get('special', {}).get('detect_http_wrapped_ftp') and self._is_http_wrapped_ftp(main_response):
             self.logger.info(f"URL '{final_url}' is an HTTP-wrapped FTP directory listing. Marking as invalid.")
+            redirect_chain_list = self._build_redirect_chain_info(main_response)
             return {
                 "valid": False,
                 "status_code": main_response.status_code,
@@ -624,14 +660,16 @@ class ServiceValidator:
                 "expected_content_type": config.get('probe', {}).get('accept', ''),
                 "auth_required": auth_required,
                 "is_doc_page": False,
-                "redirects": self._build_redirect_chain_info(main_response),
-                "had_redirect": bool(main_response.history),
-                "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in self._build_redirect_chain_info(main_response)]),
+                "redirects": redirect_chain_list,
+                "had_redirect": bool(redirect_chain_list),
+                "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list]),
                 "note": (
                     "Invalid FTP endpoint: URL returns an HTTP-wrapped FTP directory listing "
                     "(text/html served over HTTP), not a true FTP endpoint. "
                     "If an ftp:// URL is available, register that instead."
                 ),
+                "extracted_conforms_to": ect_eval['extracted_urls'],
+                "conforms_to_verified": ect_eval['status'],
             }
 
         # --- Step 1: Doc Page / Decommissioned Check ---
@@ -643,6 +681,17 @@ class ServiceValidator:
         initial_html_classification = self._classify_html_response(main_response, final_url, expected_mime=config.get('probe', {}).get('accept', ''))
         if initial_html_classification:
             self.logger.info(f"Initial URL '{final_url}' was classified as an invalid HTML page (Doc/Decommissioned). Skipping strict match and magic URL construction.")
+
+            # Override ect_eval: HTML pages naturally contain spec URLs in their content
+            # (e.g. a SWORD documentation page will mention 'http://swordapp.org/'), so the
+            # normal extraction logic would produce a false 'match'. We neutralise this by
+            # marking conformsTo verification as not_applicable on any doc/decommissioned page.
+            ect_eval = {
+                "extracted_urls": "",
+                "status": "not_applicable",
+                "score_delta": 0,
+            }
+
             core_result = {
                  "valid": initial_html_classification.get('valid', False),
                  "status_code": main_response.status_code,
@@ -670,6 +719,7 @@ class ServiceValidator:
                     service_title_matched=service_title_matched,
                     body_sig_hit=sig_hit,
                     body_sig_total=sig_total,
+                    extracted_conforms_to_delta=ect_eval['score_delta'],
                 )
                 return {
                     "valid": True,
@@ -686,6 +736,8 @@ class ServiceValidator:
                     "redirect_chain": " -> ".join([f"{r['status_code']}: {r.get('to_url', 'N/A')}" for r in redirect_chain_list]),
                     "is_doc_page": False,
                     "score": score,
+                    "extracted_conforms_to": ect_eval['extracted_urls'],
+                    "conforms_to_verified": ect_eval['status'],
                 }
 
             # --- Step 3: "Magic" / Construction Fallback ---
@@ -693,12 +745,12 @@ class ServiceValidator:
             # Try constructing the specific service URL by appending the known suffix.
             else:
                 self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
-                core_result = self._check_specific_http(main_response, final_url, config, detected_type, current_headers, main_response=main_response)
+                core_result = self._check_specific_http(main_response, final_url, config, expected_type, current_headers)
 
         else:
             # Non-2xx/3xx response and not an HTML doc page — pass through to magic URL construction.
             self.logger.info(f"Initial check did not strictly match '{expected_type}'. Proceeding to URL construction/magic.")
-            core_result = self._check_specific_http(main_response, final_url, config, detected_type, current_headers, main_response=main_response)
+            core_result = self._check_specific_http(main_response, final_url, config, expected_type, current_headers)
 
         # --- Assemble the final, complete result dictionary ---
         final_result = core_result.copy()
@@ -734,7 +786,13 @@ class ServiceValidator:
                 service_title_matched=service_title_matched,
                 body_sig_hit=sig_hit,
                 body_sig_total=sig_total,
+                extracted_conforms_to_delta=ect_eval['score_delta'],
             )
+
+        if 'extracted_conforms_to' not in final_result:
+            final_result['extracted_conforms_to'] = ect_eval['extracted_urls']
+        if 'conforms_to_verified' not in final_result:
+            final_result['conforms_to_verified'] = ect_eval['status']
 
         return final_result
 
@@ -780,8 +838,7 @@ class ServiceValidator:
         2. The response body for an RDF/HTML ldp:inbox relation (basic pattern match).
         Returns the discovered inbox URL string, or None if not found.
         """
-        import re
-        from urllib.parse import urljoin
+
 
         # 1. Check Link header — most common and most reliable discovery mechanism.
         # Example: Link: <https://example.org/inbox/>; rel="http://www.w3.org/ns/ldp#inbox"
@@ -823,7 +880,78 @@ class ServiceValidator:
 
         return None
 
-    def _check_specific_http(self, response, final_url, config, api_type, headers_to_use, main_response=None):
+    def _extract_conforms_to_from_response(self, text):
+        """
+        Scans the response text for any of the known spec URLs defined in service_profiles.json.
+        Returns a pipe-separated string of matched URLs (original casing preserved).
+        Only URLs that are in self.spec_url_index (indexed from service_profiles.json spec_urls)
+        are searched for; unknown/unlisted conformsTo URL values will not appear here.
+        """
+        if not text:
+            return ""
+        text_lower = text[:50000].lower()
+        found_urls = []
+        # Sort by length descending to match longer, more specific URLs first
+        for url in sorted(self.spec_url_index.keys(), key=len, reverse=True):
+            if url.lower() in text_lower:
+                found_urls.append(url)
+        return " | ".join(found_urls)
+
+    def _evaluate_extracted_conforms_to(self, text, expected_type):
+        """
+        Three-state evaluation of spec URLs found in the response body.
+
+        1. Extracts known spec URLs from the response text.
+        2. Resolves each to a service profile acronym.
+        3. Compares against expected_type:
+           - match     → {"status": "match",     "score_delta": +1}
+           - mismatch  → {"status": "mismatch",  "score_delta": -2}
+           - not_found → {"status": "not_found", "score_delta":  0}
+
+        Returns:
+            dict with keys: extracted_urls (str), status (str), score_delta (int)
+        """
+        extracted_str = self._extract_conforms_to_from_response(text)
+
+        if not extracted_str:
+            return {
+                "extracted_urls": "",
+                "status": "not_found",
+                "score_delta": 0,
+            }
+
+        # Resolve each found URL to its profile acronym
+        found_urls = [u.strip() for u in extracted_str.split(" | ")]
+        resolved_types = set()
+        for url in found_urls:
+            resolved = self.resolve_type_from_conforms_to(url, self.spec_url_index)
+            if resolved:
+                resolved_types.add(resolved)
+
+        if not resolved_types:
+            # Found URLs but none resolved to a known profile
+            return {
+                "extracted_urls": extracted_str,
+                "status": "not_found",
+                "score_delta": 0,
+            }
+
+        if expected_type in resolved_types:
+            return {
+                "extracted_urls": extracted_str,
+                "status": "match",
+                "score_delta": 1,
+            }
+        else:
+            return {
+                "extracted_urls": extracted_str,
+                "status": "mismatch",
+                "score_delta": -2,
+            }
+
+
+    def _check_specific_http(self, response, final_url, config, api_type, headers_to_use):
+
         suffix = config.get('probe', {}).get('suffix', '')
         expected_mime = config.get('probe', {}).get('accept', '')
 
@@ -958,22 +1086,4 @@ class ServiceValidator:
             "is_doc_page": is_doc_page # Pass the flag
         }
 
-    def _check_generic_http(self, response, final_url):
-        is_valid = 200 <= response.status_code < 400
-        note = None
-        is_doc_page = False # Default for generic check
 
-        html_classification = self._classify_html_response(response, final_url)  # no expected_mime for generic check
-        if html_classification:
-             is_valid = html_classification.get('valid', False)
-             is_doc_page = html_classification.get('is_doc_page', False)
-             if 'note' in html_classification: note = html_classification['note']
-
-        result = {
-            "valid": is_valid, "status_code": response.status_code,
-            "content_type": response.headers.get('Content-Type', 'unknown').lower(),
-            "url": final_url,
-            "is_doc_page": is_doc_page # Pass the flag
-        }
-        if note: result["note"] = note
-        return result
