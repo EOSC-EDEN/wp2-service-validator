@@ -14,20 +14,20 @@ validator = ServiceValidator()
 @app.get("/validate", summary="Validate a single service endpoint")
 def validate_endpoint(
     url: str = Query(..., description="The full URL of the endpoint to validate."),
-    type: str = Query(None, description="The expected service type acronym (e.g. OAI-PMH). Can be omitted if conforms_to resolves the type."),
+    service_type: str = Query(None, description="The expected service type acronym (e.g. OAI-PMH). Can be omitted if conforms_to resolves the type."),
     conforms_to: str = Query(None, description="The dct:conformsTo URL from harvested RDF metadata. Used for type resolution and scoring."),
 ):
     """
     Validates a single service endpoint URL against a specific Service Type.
 
     - **url**: The URL of the service to check.
-    - **type**: The expected Service Type acronym. Can be omitted if **conforms_to** resolves to a known profile.
+    - **service_type**: The expected Service Type acronym. Can be omitted if **conforms_to** resolves to a known profile.
     - **conforms_to**: Optional `dct:conformsTo` URL from harvested RDF metadata. Used for type resolution and scoring.
 
     The response includes a **score** (0–10) reflecting how many validation criteria were met.
     """
-    # Resolve expected type: conforms_to URL takes priority, then explicit type param.
-    resolved_type = type
+    # Resolve expected type: conforms_to URL takes priority, then explicit service_type param.
+    resolved_type = service_type
     if conforms_to and not resolved_type:
         resolved_type = ServiceValidator.resolve_type_from_conforms_to(
             conforms_to, validator.spec_url_index
@@ -44,7 +44,7 @@ def validate_endpoint(
         url,
         expected_type=resolved_type,
         conforms_to=conforms_to,
-        service_title=type,  # original type string used for title-match scoring
+        service_title=service_type,  # original type string used for title-match scoring
     )
     return result
 

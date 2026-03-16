@@ -690,13 +690,56 @@
             "probe": {
                 "suffix": "",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "application/opensearchdescription+xml",
+                "expected_status_codes": [200],
+                "result_format": "XML"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
+                "body_signatures": [
+                    {
+                        "pattern": "<opensearchdescription",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "http://a9.com/-/spec/opensearch/1.1/",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<OpenSearchDescription",
+                "distinctive_namespace": "http://a9.com/-/spec/opensearch/1.1/",
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false
+            },
+            "comment": "No canonical endpoint or query syntax. The endpoint URL must point directly to the OpenSearch Description Document (OSD). Look for <link rel=\"search\" type=\"application/opensearchdescription+xml\"> in HTML to discover the OSD URL. Root element is <OpenSearchDescription> in namespace http://a9.com/-/spec/opensearch/1.1/."
+        },
+        "AWS-OpenSearch": {
+            "title": "AWS OpenSearch (Elasticsearch-compatible REST API)",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://opensearch.org/docs/latest/api-reference/cluster-api/cluster-health/",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "/_cluster/health",
+                "method": "GET",
+                "accept": "application/json",
+                "expected_status_codes": [200],
+                "result_format": "JSON"
+            },
+            "validation": {
+                "body_signatures": [
+                    {"pattern": "\"cluster_name\"", "mode": "substring"},
+                    {"pattern": "\"status\"", "mode": "substring"}
+                ],
+                "distinctive_element": "cluster_name",
                 "distinctive_namespace": null,
                 "require_body_and_ct": false
             },
@@ -706,7 +749,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "AWS OpenSearch (and Elasticsearch) exposes a JSON REST API. The /_cluster/health endpoint returns cluster status JSON with cluster_name and status fields. Note: unrelated to the OpenSearch (OSD) description document format."
         },
         "RSS": {
             "title": "Really Simple Syndication",
@@ -801,13 +844,22 @@
             "probe": {
                 "suffix": "",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "application/linkset+json",
+                "expected_status_codes": [200],
+                "result_format": "JSON"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
+                "body_signatures": [
+                    {
+                        "pattern": "\"linkset\"",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "\"anchor\"",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "linkset",
                 "distinctive_namespace": null,
                 "require_body_and_ct": false
             },
@@ -817,7 +869,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "Static JSON Link Set document (application/linkset+json) discovered via a Link header with rel=\"api-catalog\" and profile=\"https://signposting.org/FAIRiCat/\". The endpoint URL must point directly to the FAIRiCat document. Top-level key is \"linkset\" containing an array of objects each with an \"anchor\" and link-relation-named members (service-doc, service-desc, service-meta)."
         },
         "LAS": {
             "title": "Live Access Server",
@@ -830,14 +882,19 @@
                 }
             ],
             "probe": {
-                "suffix": "",
+                "suffix": "/las/ProductServer.do",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "text/html",
+                "expected_status_codes": [200],
+                "result_format": "HTML"
             },
             "validation": {
-                "body_signatures": [],
+                "body_signatures": [
+                    {
+                        "pattern": "las product server",
+                        "mode": "substring"
+                    }
+                ],
                 "distinctive_element": null,
                 "distinctive_namespace": null,
                 "require_body_and_ct": false
@@ -848,7 +905,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "No unified capabilities endpoint. ProductServer.do is the official HTML health check (returns a page starting with 'This is the ... LAS Product Server'). GUI metadata available at /las/getCategories.do (returns JSON). Format for data products is controlled via LAS request properties, not HTTP Accept."
         },
         "AMPQ": {
             "title": "Advanced Message Queuing Protocol",
@@ -945,7 +1002,7 @@
         },
         "TAPIR": {
             "title": "TDWG Access Protocol for Information Retrieval",
-            "fairsharing_doi": null,
+            "fairsharing_doi": "https://doi.org/10.25504/FAIRsharing.4c9hhn",
             "cpp": null,
             "spec_urls": [
                 {
@@ -954,16 +1011,29 @@
                 }
             ],
             "probe": {
-                "suffix": "",
+                "suffix": "?op=ping",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "text/xml",
+                "expected_status_codes": [200],
+                "result_format": "XML"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
-                "distinctive_namespace": null,
+                "body_signatures": [
+                    {
+                        "pattern": "<response",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "http://rs.tdwg.org/tapir/1.0",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "<pong",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<response",
+                "distinctive_namespace": "http://rs.tdwg.org/tapir/1.0",
                 "require_body_and_ct": false
             },
             "special": {
@@ -972,7 +1042,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "Explicit ping operation. Response is XML with root <response xmlns=\"http://rs.tdwg.org/tapir/1.0\"> containing <pong>. The TAPIR namespace must be the default namespace in all messages. Default operation (no op=) returns metadata."
         },
         "DIGIR": {
             "title": "Distributed Generic Information Retrieval",
@@ -990,14 +1060,24 @@
             ],
             "probe": {
                 "suffix": "",
-                "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "method": "POST",
+                "body": "<request><metadata/></request>",
+                "accept": "text/xml",
+                "expected_status_codes": [200],
+                "result_format": "XML"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
+                "body_signatures": [
+                    {
+                        "pattern": "<response",
+                        "mode": "substring"
+                    },
+                    {
+                        "pattern": "http://digir.net/schema/protocol/2003/1.0",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": "<response",
                 "distinctive_namespace": "http://digir.net/schema/protocol/2003/1.0",
                 "require_body_and_ct": false
             },
@@ -1007,11 +1087,11 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "Requires HTTP POST with a minimal XML DiGIR request body. Response is XML with root <response> in the DiGIR namespace. The probe body field contains the minimal metadata request."
         },
         "OGC-CSW": {
             "title": "OGC Catalogue Service for the Web",
-            "fairsharing_doi": null,
+            "fairsharing_doi": "https://doi.org/10.25504/FAIRsharing.88dd04",
             "cpp": null,
             "spec_urls": [
                 {
@@ -1024,10 +1104,10 @@
                 }
             ],
             "probe": {
-                "suffix": "?service=CSW&version=2.0.2&request=GetCapabilities",
+                "suffix": "?service=CSW&request=GetCapabilities&version=2.0.2",
                 "method": "GET",
-                "accept": "text/xml",
-                "expected_status_codes": [],
+                "accept": "application/xml",
+                "expected_status_codes": [200],
                 "result_format": "XML"
             },
             "validation": {
@@ -1042,7 +1122,7 @@
                     }
                 ],
                 "distinctive_element": "csw:Capabilities",
-                "distinctive_namespace": null,
+                "distinctive_namespace": "http://www.opengis.net/cat/csw/2.0.2",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1051,7 +1131,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "Probe suffix is a suggested GetCapabilities query — body signatures come from Validator.py."
+            "comment": "CSW 2.0.2 uses 'version' (not 'acceptVersions') for GetCapabilities. Root element is csw:Capabilities in namespace http://www.opengis.net/cat/csw/2.0.2. CSW 3.0 uses namespace .../csw/3.0."
         },
         "OGC-WMS": {
             "title": "OGC Web Map Service",
@@ -1068,10 +1148,10 @@
                 }
             ],
             "probe": {
-                "suffix": "?service=WMS&version=1.3.0&request=GetCapabilities",
+                "suffix": "?service=WMS&request=GetCapabilities&version=1.3.0",
                 "method": "GET",
-                "accept": "text/xml",
-                "expected_status_codes": [],
+                "accept": "application/xml",
+                "expected_status_codes": [200],
                 "result_format": "XML"
             },
             "validation": {
@@ -1086,7 +1166,7 @@
                     }
                 ],
                 "distinctive_element": "WMS_Capabilities",
-                "distinctive_namespace": null,
+                "distinctive_namespace": "http://www.opengis.net/wms",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1095,7 +1175,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "Body signatures come from Validator.py."
+            "comment": "WMS 1.3.0 root element is WMS_Capabilities in namespace http://www.opengis.net/wms. WMS 1.1.1 uses WMT_MS_Capabilities. Accept header not part of WMS contract — format is controlled by the request, not HTTP negotiation."
         },
         "OGC-WMTS": {
             "title": "OpenGIS Web Map Tile Service",
@@ -1108,25 +1188,25 @@
                 }
             ],
             "probe": {
-                "suffix": "?service=WMTS&version=1.0.0&request=GetCapabilities",
+                "suffix": "?SERVICE=WMTS&REQUEST=GetCapabilities&ACCEPTVERSIONS=1.0.0",
                 "method": "GET",
-                "accept": "text/xml",
-                "expected_status_codes": [],
+                "accept": "application/xml",
+                "expected_status_codes": [200],
                 "result_format": "XML"
             },
             "validation": {
                 "body_signatures": [
                     {
-                        "pattern": "wmts_capabilities",
+                        "pattern": "xmlns=\"http://www.opengis.net/wmts/1.0\"",
                         "mode": "substring"
                     },
                     {
-                        "pattern": "service=\"wmts\"",
+                        "pattern": "http://www.opengis.net/wmts/1.0",
                         "mode": "substring"
                     }
                 ],
                 "distinctive_element": "Capabilities",
-                "distinctive_namespace": null,
+                "distinctive_namespace": "http://www.opengis.net/wmts/1.0",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1135,7 +1215,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe suffix and body signatures are inferred from the OGC pattern — to be verified with real endpoints."
+            "comment": "OWS Common requires ACCEPTVERSIONS (not VERSION) for GetCapabilities. Root element is <Capabilities> in default namespace http://www.opengis.net/wmts/1.0. Also supports RESTful access via .../1.0.0/WMTSCapabilities.xml."
         },
         "OGC-WFS": {
             "title": "OGC Web Feature Service",
@@ -1152,16 +1232,16 @@
                 }
             ],
             "probe": {
-                "suffix": "?service=WFS&version=2.0.0&request=GetCapabilities",
+                "suffix": "?service=WFS&request=GetCapabilities&ACCEPTVERSIONS=2.0.0",
                 "method": "GET",
-                "accept": "text/xml",
-                "expected_status_codes": [],
+                "accept": "application/xml",
+                "expected_status_codes": [200],
                 "result_format": "XML"
             },
             "validation": {
                 "body_signatures": [
                     {
-                        "pattern": "wfs:wfscapabilities",
+                        "pattern": "wfs:wfs_capabilities",
                         "mode": "substring"
                     },
                     {
@@ -1170,7 +1250,7 @@
                     }
                 ],
                 "distinctive_element": "WFS_Capabilities",
-                "distinctive_namespace": null,
+                "distinctive_namespace": "http://www.opengis.net/wfs/2.0",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1179,7 +1259,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Body signatures inferred — to be verified with real endpoints."
+            "comment": "OWS Common requires ACCEPTVERSIONS for GetCapabilities. Root element is wfs:WFS_Capabilities in namespace http://www.opengis.net/wfs/2.0. WFS 1.x uses namespace http://www.opengis.net/wfs (no /2.0)."
         },
         "OGC-SOS": {
             "title": "OGC Sensor Observation Service",
@@ -1196,10 +1276,10 @@
                 }
             ],
             "probe": {
-                "suffix": "?service=SOS&version=2.0.0&request=GetCapabilities",
+                "suffix": "?service=SOS&request=GetCapabilities&acceptVersions=2.0.0",
                 "method": "GET",
                 "accept": "text/xml",
-                "expected_status_codes": [],
+                "expected_status_codes": [200],
                 "result_format": "XML"
             },
             "validation": {
@@ -1214,7 +1294,7 @@
                     }
                 ],
                 "distinctive_element": "Capabilities",
-                "distinctive_namespace": null,
+                "distinctive_namespace": "http://www.opengis.net/sos/2.0",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1223,7 +1303,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Body signatures inferred — to be verified with real endpoints."
+            "comment": "SOS 2.0 uses acceptVersions for GetCapabilities. Root element is sos:Capabilities in namespace http://www.opengis.net/sos/2.0. Endpoint paths vary by binding (/kvp, /pox, /soap). SOS 1.0 uses version= instead of acceptVersions=."
         },
         "OGC-WCS": {
             "title": "OGC Web Coverage Service",
@@ -1240,10 +1320,10 @@
                 }
             ],
             "probe": {
-                "suffix": "?service=WCS&version=2.0.1&request=GetCapabilities",
+                "suffix": "?service=WCS&request=GetCapabilities&acceptversions=2.0.1",
                 "method": "GET",
-                "accept": "text/xml",
-                "expected_status_codes": [],
+                "accept": "application/xml",
+                "expected_status_codes": [200],
                 "result_format": "XML"
             },
             "validation": {
@@ -1258,7 +1338,7 @@
                     }
                 ],
                 "distinctive_element": "Capabilities",
-                "distinctive_namespace": null,
+                "distinctive_namespace": "http://www.opengis.net/wcs/2.0",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1267,11 +1347,11 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Body signatures inferred — to be verified with real endpoints."
+            "comment": "OWS Common requires acceptversions for GetCapabilities (not version=). Root element is wcs:Capabilities in namespace http://www.opengis.net/wcs/2.0. WCS 1.0 uses WCS_Capabilities in namespace http://www.opengis.net/wcs."
         },
         "IVOA-SCS": {
             "title": "Simple Cone Search",
-            "fairsharing_doi": null,
+            "fairsharing_doi": "https://doi.org/10.25504/FAIRsharing.KTpITA",
             "cpp": null,
             "spec_urls": [
                 {
@@ -1288,15 +1368,18 @@
                 }
             ],
             "probe": {
-                "suffix": "",
+                "suffix": "?RA=0&DEC=90&SR=0",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "text/xml",
+                "expected_status_codes": [200],
+                "result_format": "XML"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
+                "body_signatures": [
+                    {"pattern": "<votable", "mode": "substring"},
+                    {"pattern": "query_status", "mode": "substring"}
+                ],
+                "distinctive_element": "<VOTABLE",
                 "distinctive_namespace": null,
                 "require_body_and_ct": false
             },
@@ -1306,11 +1389,11 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "SCS returns a VOTable with QUERY_STATUS INFO element. SR=0 means zero search radius (metadata probe)."
         },
         "IVOA-SIA": {
             "title": "Simple Image Access",
-            "fairsharing_doi": null,
+            "fairsharing_doi": "https://doi.org/10.25504/FAIRsharing.QXwmj1",
             "cpp": null,
             "spec_urls": [
                 {
@@ -1327,16 +1410,19 @@
                 }
             ],
             "probe": {
-                "suffix": "",
+                "suffix": "?MAXREC=0",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "application/x-votable+xml",
+                "expected_status_codes": [200],
+                "result_format": "XML"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
-                "distinctive_namespace": null,
+                "body_signatures": [
+                    {"pattern": "<votable", "mode": "substring"},
+                    {"pattern": "<resource type=\"results\"", "mode": "substring"}
+                ],
+                "distinctive_element": "<VOTABLE",
+                "distinctive_namespace": "http://www.ivoa.net/xml/VOTable/v1.3",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1345,11 +1431,11 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "SIA returns a VOTable with RESOURCE type=results. MAXREC=0 returns metadata only (no rows)."
         },
         "IVOA-SSA": {
             "title": "Simple Spectral Access",
-            "fairsharing_doi": null,
+            "fairsharing_doi": "https://doi.org/10.25504/FAIRsharing.4BQ3AQ",
             "cpp": null,
             "spec_urls": [
                 {
@@ -1366,16 +1452,19 @@
                 }
             ],
             "probe": {
-                "suffix": "",
+                "suffix": "?REQUEST=queryData&FORMAT=METADATA",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "application/x-votable+xml",
+                "expected_status_codes": [200],
+                "result_format": "XML"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
-                "distinctive_namespace": null,
+                "body_signatures": [
+                    {"pattern": "<votable", "mode": "substring"},
+                    {"pattern": "query_status", "mode": "substring"}
+                ],
+                "distinctive_element": "<VOTABLE",
+                "distinctive_namespace": "http://www.ivoa.net/xml/SSA/v1.1",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1384,11 +1473,11 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "SSA FORMAT=METADATA returns a VOTable describing supported parameters. REQUEST=queryData is mandatory per spec."
         },
         "IVOA-SLAP": {
             "title": "Simple Line Access Protocol",
-            "fairsharing_doi": null,
+            "fairsharing_doi": "https://doi.org/10.25504/FAIRsharing.9a3ok9",
             "cpp": null,
             "spec_urls": [
                 {
@@ -1405,16 +1494,19 @@
                 }
             ],
             "probe": {
-                "suffix": "",
+                "suffix": "?FORMAT=METADATA",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "text/xml",
+                "expected_status_codes": [200],
+                "result_format": "XML"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
-                "distinctive_namespace": null,
+                "body_signatures": [
+                    {"pattern": "<votable", "mode": "substring"},
+                    {"pattern": "query_status", "mode": "substring"}
+                ],
+                "distinctive_element": "<VOTABLE",
+                "distinctive_namespace": "http://www.ivoa.net/xml/SimpleSpectrumLineDM/SimpleSpectrumLineDM-v1.0.xsd",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1423,11 +1515,11 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "SLAP FORMAT=METADATA returns a VOTable with service metadata. getCapabilities is reserved but not fully defined in SLAP 1.0."
         },
         "IVOA-TAP": {
             "title": "Table Access Protocol",
-            "fairsharing_doi": null,
+            "fairsharing_doi": "https://doi.org/10.25504/FAIRsharing.dnE6tF",
             "cpp": null,
             "spec_urls": [
                 {
@@ -1436,16 +1528,19 @@
                 }
             ],
             "probe": {
-                "suffix": "",
+                "suffix": "/capabilities",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "application/xml",
+                "expected_status_codes": [200],
+                "result_format": "XML"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
-                "distinctive_namespace": null,
+                "body_signatures": [
+                    {"pattern": "<capabilities", "mode": "substring"},
+                    {"pattern": "ivo://ivoa.net/std/tap", "mode": "substring"}
+                ],
+                "distinctive_element": "<capabilities",
+                "distinctive_namespace": "http://www.ivoa.net/xml/VOSICapabilities/v1.0",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1454,11 +1549,11 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "TAP /capabilities is mandatory per spec (VOSI). Response contains <capability standardID='ivo://ivoa.net/std/TAP'> with TAPRegExt type."
         },
         "IVOA-VOSpace": {
             "title": "VOSpace, the IVOA interface to distributed storage",
-            "fairsharing_doi": null,
+            "fairsharing_doi": "https://doi.org/10.25504/FAIRsharing.44plg5",
             "cpp": null,
             "spec_urls": [
                 {
@@ -1471,16 +1566,19 @@
                 }
             ],
             "probe": {
-                "suffix": "",
+                "suffix": "/availability",
                 "method": "GET",
-                "accept": "",
-                "expected_status_codes": [],
-                "result_format": ""
+                "accept": "application/xml",
+                "expected_status_codes": [200],
+                "result_format": "XML"
             },
             "validation": {
-                "body_signatures": [],
-                "distinctive_element": null,
-                "distinctive_namespace": null,
+                "body_signatures": [
+                    {"pattern": "<availability", "mode": "substring"},
+                    {"pattern": "http://www.ivoa.net/xml/vosiavailability/v1.0", "mode": "substring"}
+                ],
+                "distinctive_element": "<availability",
+                "distinctive_namespace": "http://www.ivoa.net/xml/VOSIAvailability/v1.0",
                 "require_body_and_ct": false
             },
             "special": {
@@ -1489,7 +1587,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "STUB: Probe and body signature details not yet defined. To be completed."
+            "comment": "VOSpace uses VOSI /availability endpoint. Response is XML with <availability> root in VOSIAvailability namespace containing <available>true|false</available>."
         },
         "NetCDF": {
             "title": "NetCDF (OPeNDAP)",

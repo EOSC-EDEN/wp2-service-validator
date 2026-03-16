@@ -1,4 +1,4 @@
-fastapi
-uvicorn[standard]
-requests
-lxml
+fastapi>=0.111,<1
+uvicorn[standard]>=0.29,<1
+requests>=2.31,<3
+lxml>=5.0,<7

@@ -220,7 +220,7 @@ def run_batch_validation():
         'note',
     ]
 
-    all_keys = set(k for r in results for k in r.keys())
+    all_keys = set(k for r in results for k in r)
     all_keys.discard('redirects')  # not CSV-friendly
     final_fieldnames = ordered_fieldnames + sorted(list(all_keys - set(ordered_fieldnames)))
 
