@@ -744,7 +744,7 @@ class ServiceValidator:
                 "status_code": main_response.status_code,
                 "content_type": main_response.headers.get('Content-Type', '').lower(),
                 "url": url,
-                "redirected_url": final_url,
+                "redirected_url": final_url if bool(redirect_chain_list) else '',
                 "constructed_url": "",
                 "expected_content_type": config.get('probe', {}).get('accept', ''),
                 "auth_required": auth_required,

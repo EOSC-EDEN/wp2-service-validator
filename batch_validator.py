@@ -3,8 +3,12 @@ import csv
 import logging
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from Validator import ServiceValidator
 from fuseki_loader import FusekiLoader
+from type_resolver import resolve_type
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -36,6 +40,11 @@ def run_batch_validation():
 
     Results are written to a CSV file. A separate `conformsTo_mismatches.csv`
     is produced for any conformsTo URLs that could not be resolved to a profile.
+
+    When neither conformsTo nor serviceTitle can resolve the service type, the validator
+    calls the wp2-service-identifier API to infer the type automatically. Records
+    resolved this way are flagged with resolution_method='identifier' and inferred_type=True.
+    If the identifier is unavailable, that record is recorded as an error (the batch continues).
     """
     parser = argparse.ArgumentParser(
         description="Run batch validation on service endpoints from Fuseki or a CSV file."
@@ -57,7 +66,21 @@ def run_batch_validation():
         '--mismatches', default='conformsTo_mismatches.csv',
         help='Path for the conformsTo mismatch report CSV (default: %(default)s).'
     )
+    parser.add_argument(
+        '--no-identifier', action='store_true',
+        help='Disable automatic type inference via the wp2-service-identifier. '
+             'Records with no resolvable type will be recorded as errors.'
+    )
+    parser.add_argument(
+        '--force-identifier', action='store_true',
+        help='Skip conformsTo and serviceTitle resolution; use the wp2-service-identifier '
+             'for every record. Useful for evaluating identifier accuracy against Fuseki data.'
+    )
     args = parser.parse_args()
+
+    if args.force_identifier:
+        base, ext = os.path.splitext(args.output)
+        args.output = f"{base}_forced-identifier{ext or '.csv'}"
 
     validator = ServiceValidator()
     available_types = list(validator.protocol_configs.keys())
@@ -103,12 +126,13 @@ def run_batch_validation():
             continue
 
         # ------------------------------------------------------------------
-        # Type resolution: conformsTo first, then serviceTitle fallback
+        # Type resolution: conformsTo → serviceTitle → identifier (fallback)
         # ------------------------------------------------------------------
         expected_type = None
         resolution_method = 'none'
+        type_inferred = False
 
-        if conforms_to:
+        if not args.force_identifier and conforms_to:
             expected_type = ServiceValidator.resolve_type_from_conforms_to(
                 conforms_to, validator.spec_url_index
             )
@@ -139,10 +163,27 @@ def run_batch_validation():
                     'profile_spec_urls': candidate_spec_urls,
                 })
 
-        if not expected_type and service_title:
+        if not args.force_identifier and not expected_type and service_title:
             expected_type = ServiceValidator.map_service_type(service_title, available_types)
             if expected_type:
                 resolution_method = 'service_title'
+
+        # Third fallback (or first when --force-identifier): wp2-service-identifier
+        if not expected_type and not args.no_identifier:
+            try:
+                inferred, type_inferred = resolve_type(endpoint_url, mode='batch')
+                if inferred:
+                    expected_type = inferred
+                    resolution_method = 'identifier'
+                    logging.info(
+                        f"[{i + 1}/{len(raw_records)}] Type inferred by identifier: "
+                        f"'{expected_type}' for {endpoint_url}"
+                    )
+            except RuntimeError as e:
+                logging.warning(
+                    f"[{i + 1}/{len(raw_records)}] Identifier unavailable for "
+                    f"'{endpoint_url}': {e}"
+                )
 
         if not expected_type:
             logging.warning(
@@ -175,6 +216,7 @@ def run_batch_validation():
             'conforms_to_verified': result.get('conforms_to_verified', ''),
             'mapped_service_type': expected_type or 'N/A',
             'resolution_method': resolution_method,
+            'inferred_type': type_inferred,
         }
         # Add any extra fields from the original row (CSV mode passthrough)
         for k, v in original_row.items():
@@ -205,6 +247,7 @@ def run_batch_validation():
         'conforms_to_verified',
         'mapped_service_type',
         'resolution_method',
+        'inferred_type',
         'valid',
         'score',
         'status_code',
