@@ -787,6 +787,10 @@ class ServiceValidator:
                 core_result = self._check_specific_http(
                     main_response, final_url, config, expected_type, current_headers
                 )
+                # Re-evaluate conformsTo from the actual suffix response, not the HTML doc-page
+                suffix_text = core_result.pop('_response_text', None)
+                if suffix_text:
+                    ect_eval = self._evaluate_extracted_conforms_to(suffix_text, expected_type)
             else:
                 # No suffix to try, or decommissioned page — accept the doc-page verdict.
                 # Override ect_eval: HTML pages naturally contain spec URLs in their content
