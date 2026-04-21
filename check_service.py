@@ -1,5 +1,6 @@
 import argparse
 import json
+import shlex
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -21,10 +22,22 @@ def main():
     # If no URL via CLI, ask interactively
     if not url:
         print("--- Manual Service Check ---")
-        url = input("Enter Service URL: ").strip()
-        if not url:
+        raw = input("Enter Service URL: ").strip()
+        if not raw:
             print("Error: URL is required.")
             return
+        # Allow inline flags like: https://example.com --type SOAP
+        if '--type' in raw:
+            try:
+                parts = shlex.split(raw)
+                type_idx = parts.index('--type')
+                if not expected_type:
+                    expected_type = parts[type_idx + 1]
+                parts = [p for i, p in enumerate(parts) if i not in (type_idx, type_idx + 1)]
+                raw = ' '.join(parts)
+            except (ValueError, IndexError):
+                pass
+        url = raw
 
     # If no type via CLI, try the identifier before asking the user manually.
     # In 'cli' mode, resolve_type will prompt the user interactively when confidence
