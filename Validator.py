@@ -744,7 +744,7 @@ class ServiceValidator:
                 "status_code": main_response.status_code,
                 "content_type": main_response.headers.get('Content-Type', '').lower(),
                 "url": url,
-                "redirected_url": final_url,
+                "redirected_url": final_url if bool(redirect_chain_list) else '',
                 "constructed_url": "",
                 "expected_content_type": config.get('probe', {}).get('accept', ''),
                 "auth_required": auth_required,
@@ -773,25 +773,43 @@ class ServiceValidator:
         if initial_html_classification:
             self.logger.info(
                 f"Initial URL '{final_url}' was classified as an invalid HTML page "
-                "(Doc/Decommissioned). Skipping strict match and magic URL construction."
+                "(Doc/Decommissioned). Checking for profile probe suffix before giving up."
             )
-            # Override ect_eval: HTML pages naturally contain spec URLs in their content
-            # (e.g. a SWORD documentation page will mention 'http://swordapp.org/'), so the
-            # normal extraction logic would produce a false 'match'. We neutralise this by
-            # marking conformsTo verification as not_applicable on any doc/decommissioned page.
-            ect_eval = {"extracted_urls": "", "status": "not_applicable: doc/decommissioned page", "score_delta": 0}
-            core_result = {
-                "valid": initial_html_classification.get('valid', False),
-                "status_code": main_response.status_code,
-                "content_type": main_response.headers.get('Content-Type', '').lower(),
-                "url": final_url,
-                "expected_content_type": config.get('probe', {}).get('accept', ''),
-                "is_doc_page": initial_html_classification.get('is_doc_page', False),
-            }
-            if 'error' in initial_html_classification:
-                core_result['error'] = initial_html_classification['error']
-            if 'note' in initial_html_classification:
-                core_result['note'] = initial_html_classification['note']
+            # If the profile has a probe suffix (e.g. SOAP's '?wsdl'), the base URL returning
+            # HTML does NOT mean the service endpoint is invalid — the real service URL is the
+            # suffix URL.  Attempt the suffix probe before accepting the doc-page verdict.
+            probe_suffix = config.get('probe', {}).get('suffix', '')
+            if probe_suffix and initial_html_classification.get('is_doc_page'):
+                self.logger.info(
+                    f"Profile '{expected_type}' has probe suffix '{probe_suffix}'. "
+                    "Attempting suffix URL despite HTML base response."
+                )
+                core_result = self._check_specific_http(
+                    main_response, final_url, config, expected_type, current_headers
+                )
+                # Re-evaluate conformsTo from the actual suffix response, not the HTML doc-page
+                suffix_text = core_result.pop('_response_text', None)
+                if suffix_text:
+                    ect_eval = self._evaluate_extracted_conforms_to(suffix_text, expected_type)
+            else:
+                # No suffix to try, or decommissioned page — accept the doc-page verdict.
+                # Override ect_eval: HTML pages naturally contain spec URLs in their content
+                # (e.g. a SWORD documentation page will mention 'http://swordapp.org/'), so the
+                # normal extraction logic would produce a false 'match'. We neutralise this by
+                # marking conformsTo verification as not_applicable on any doc/decommissioned page.
+                ect_eval = {"extracted_urls": "", "status": "not_applicable: doc/decommissioned page", "score_delta": 0}
+                core_result = {
+                    "valid": initial_html_classification.get('valid', False),
+                    "status_code": main_response.status_code,
+                    "content_type": main_response.headers.get('Content-Type', '').lower(),
+                    "url": final_url,
+                    "expected_content_type": config.get('probe', {}).get('accept', ''),
+                    "is_doc_page": initial_html_classification.get('is_doc_page', False),
+                }
+                if 'error' in initial_html_classification:
+                    core_result['error'] = initial_html_classification['error']
+                if 'note' in initial_html_classification:
+                    core_result['note'] = initial_html_classification['note']
 
         # --- Step 2: Strict Initial Check ---
         # Only reached if the response was NOT identified as a doc/decommissioned page above.

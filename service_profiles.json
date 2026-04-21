@@ -375,7 +375,7 @@
                         "mode": "substring"
                     },
                     {
-                        "pattern": "<definitions",
+                        "pattern": "wsdl:import",
                         "mode": "substring"
                     },
                     {

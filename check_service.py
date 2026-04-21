@@ -1,15 +1,20 @@
 import argparse
 import json
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from Validator import ServiceValidator
+from type_resolver import resolve_type
 
 def main():
     parser = argparse.ArgumentParser(description="Check a single service endpoint.")
     parser.add_argument("--url", help="The URL to validate")
-    parser.add_argument("--type", required=False, help="The expected Service Type (Acronym) for strict validation (e.g., 'OAI-PMH')")
+    parser.add_argument("--type", required=False, help="The expected Service Type (Acronym) for strict validation (e.g., 'OAI-PMH'). If omitted, the identifier is queried automatically.")
     parser.add_argument("--conforms-to", dest="conforms_to", default=None, help="Optional dct:conformsTo URL (used for scoring, should match the harvested RDF value)")
 
     args = parser.parse_args()
-    
+
     url = args.url
     expected_type = args.type
 
@@ -21,21 +26,32 @@ def main():
             print("Error: URL is required.")
             return
 
-    # If no type via CLI, ask interactively
+    # If no type via CLI, try the identifier before asking the user manually.
+    # In 'cli' mode, resolve_type will prompt the user interactively when confidence
+    # is below the threshold, so the user always has the final say.
+    type_inferred = False
     if not expected_type:
-        expected_type = input("Enter expected Service Type (e.g., OAI-PMH): ").strip()
-        if not expected_type:
-             print("Error: Service Type is required for strict validation.")
-             return
+        try:
+            expected_type, type_inferred = resolve_type(url, mode='cli')
+            if expected_type is None:
+                print(
+                    "Error: The identifier could not suggest a service type for this URL. "
+                    "Re-run with --type to supply one manually."
+                )
+                return
+        except RuntimeError as e:
+            print(f"Error: {e}")
+            return
 
     validator = ServiceValidator()
 
     # Attempt to map the user's input (e.g., "SWORD API") to a known Acronym (e.g., "SWORD").
-    # By this point expected_type is guaranteed non-empty (enforced above).
     # If no mapping is found, validate_url will return an "Unknown Service Type" error.
     available_types = list(validator.protocol_configs.keys())
     # Keep the original input as service_title for scoring (mirrors API behaviour).
-    service_title = expected_type
+    # If the type was inferred (not typed by the user), service_title is left None so
+    # the title-match scoring criterion is not artificially awarded.
+    service_title = expected_type if not type_inferred else None
     mapped_type = ServiceValidator.map_service_type(expected_type, available_types)
     if mapped_type:
         if mapped_type != expected_type:
@@ -49,7 +65,8 @@ def main():
     else:
         conforms_to = args.conforms_to
 
-    print(f"\nValidating: {url} (Strict Type: {expected_type})...\n")
+    inferred_label = " [inferred by identifier]" if type_inferred else ""
+    print(f"\nValidating: {url} (Strict Type: {expected_type}{inferred_label})...\n")
 
     # The validator returns a complete dictionary with all data points
     result = validator.validate_url(url, expected_type=expected_type,
@@ -60,6 +77,10 @@ def main():
     # is already present and more informative for JSON output.
     console_result = result.copy()
     console_result.pop('redirect_chain', None)
+
+    if type_inferred:
+        console_result['inferred_type'] = True
+        console_result['inferred_service_type'] = expected_type
 
     print("-" * 30)
     print("VALIDATION RESULT:")
