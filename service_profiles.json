@@ -75,7 +75,7 @@
             "probe": {
                 "suffix": "?verb=Identify",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [
                     200
                 ],
@@ -129,7 +129,7 @@
             "probe": {
                 "suffix": "",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [
                     200
                 ],
@@ -217,7 +217,7 @@
             "probe": {
                 "suffix": "",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [],
                 "result_format": "XML"
             },
@@ -253,7 +253,7 @@
             "probe": {
                 "suffix": "/catalog.xml",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [],
                 "result_format": "XML"
             },
@@ -365,7 +365,7 @@
             "probe": {
                 "suffix": "?wsdl",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [],
                 "result_format": "XML"
             },
@@ -452,7 +452,7 @@
             "probe": {
                 "suffix": "",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [],
                 "result_format": "XML"
             },
@@ -1014,7 +1014,7 @@
             "probe": {
                 "suffix": "?op=ping",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
@@ -1063,7 +1063,7 @@
                 "suffix": "",
                 "method": "POST",
                 "body": "<request><metadata/></request>",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
@@ -1279,7 +1279,7 @@
             "probe": {
                 "suffix": "?service=SOS&request=GetCapabilities&acceptVersions=2.0.0",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
@@ -1371,7 +1371,7 @@
             "probe": {
                 "suffix": "?RA=0&DEC=90&SR=0",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
@@ -1497,7 +1497,7 @@
             "probe": {
                 "suffix": "?FORMAT=METADATA",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
