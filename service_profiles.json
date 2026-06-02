@@ -908,7 +908,7 @@
             },
             "comment": "No unified capabilities endpoint. ProductServer.do is the official HTML health check (returns a page starting with 'This is the ... LAS Product Server'). GUI metadata available at /las/getCategories.do (returns JSON). Format for data products is controlled via LAS request properties, not HTTP Accept."
         },
-        "AMPQ": {
+        "AMQP": {
             "title": "Advanced Message Queuing Protocol",
             "fairsharing_doi": null,
             "cpp": null,
