@@ -58,6 +58,16 @@ python check_service.py --url "https://example.com/oai" --type OAI-PMH
 python check_service.py --url "https://example.com/oai"
 ```
 
+You can also run the script with no arguments for an interactive prompt:
+
+```
+python check_service.py
+--- Manual Service Check ---
+Enter Service URL: https://example.com/oai --type OAI-PMH
+```
+
+Inline `--type` is supported in the prompt, so you can paste a URL and append the type in one go.
+
 When the identifier's confidence is below the threshold, the CLI will prompt you to confirm or override the suggestion interactively.
 
 ### 3. Batch Validation (Fuseki)
@@ -112,7 +122,15 @@ The `resolution_method` column in the output CSV records which step succeeded (`
 
 ## Configuration
 
-The file `service_profiles.json` contains the mapping rules for all supported service types. You can edit this file to:
+> **⚠️ `service_profiles.json` is a synced copy — do not edit it here.**
+> The single authoritative copy lives in
+> **[weiserjens/service-profiles](https://github.com/weiserjens/service-profiles.git)**
+> and is synced automatically into this repo (and the wp2-service-identifier
+> repo) via the `sync/service-profiles` branch. Local edits will be
+> **overwritten** on the next sync. To change a profile, edit it in the
+> authoritative source repo.
+
+The file `service_profiles.json` contains the mapping rules for all supported service types. Edit it **in the authoritative source repo** to:
 * Add new service profiles or acronyms.
 * Define validation criteria like `spec_urls` for matching `dct:conformsTo`.
 * Add `body_signatures` for deeper validation.
