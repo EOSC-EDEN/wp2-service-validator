@@ -178,6 +178,10 @@
                 {
                     "url": "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
                     "role": "doc"
+                },
+                {
+                    "url": "https://roy.gbiv.com/pubs/dissertation/rest_arch_style.htm",
+                    "role": "doc"
                 }
             ],
             "probe": {
@@ -202,7 +206,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "Generic REST endpoint. A 400 Bad Request on the base URL is acceptable — it indicates the server is live and responding to REST-style requests, even if the root path requires parameters."
+            "comment": "Generic REST endpoint. A 400 Bad Request on the base URL is acceptable — it indicates the server is live and responding to REST-style requests, even if the root path requires parameters. REST has no formal specification; the spec_urls point to the relevant chapter of Fielding's 2000 dissertation, which is the accepted reference. These URLs are non-functional for body scanning — no REST service embeds them in responses."
         },
         "OpenDAP": {
             "title": "OpenDAP",
@@ -310,7 +314,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "ERDDAP's /index.json returns a JSON object with a 'table' key listing all datasets."
+            "comment": "ERDDAP's /index.json returns a JSON object with a 'table' key listing all datasets. ERDDAP has no formal specification — it uses DAP (Data Access Protocol), a RESTful protocol, as its underlying model. The ERDDAP server software is documented at https://github.com/ERDDAP/erddap and https://coastwatch.pfeg.noaa.gov/erddap/index.html."
         },
         "SPARQL": {
             "title": "SPARQL Query Language",
@@ -678,14 +682,6 @@
                 {
                     "url": "https://github.com/dewitt/opensearch/blob/master/opensearch-1-1-draft-6.md",
                     "role": "doc"
-                },
-                {
-                    "url": "http://www.opensearch.org/Specifications/OpenSearch/1.1",
-                    "role": "doc"
-                },
-                {
-                    "url": "http://a9.com/-/spec/opensearch/1.1/",
-                    "role": "namespace"
                 }
             ],
             "probe": {
@@ -914,7 +910,7 @@
             "cpp": null,
             "spec_urls": [
                 {
-                    "url": "https://www.amqp.org/resources/specifications",
+                    "url": "https://docs.oasis-open.org/amqp/core/v1.0/os/amqp-core-overview-v1.0-os.html",
                     "role": "doc"
                 }
             ],
@@ -945,7 +941,7 @@
             "cpp": null,
             "spec_urls": [
                 {
-                    "url": "https://mqtt.org/mqtt-specification/",
+                    "url": "https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html",
                     "role": "doc"
                 }
             ],
