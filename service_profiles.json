@@ -12,6 +12,7 @@
             "rest api",
             "api documentation",
             "api reference",
+            "NONSENSE API DOC KEYWORD",
             "developer guide",
             "endpoints",
             "usage guide",
@@ -74,7 +75,7 @@
             "probe": {
                 "suffix": "?verb=Identify",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [
                     200
                 ],
@@ -128,7 +129,7 @@
             "probe": {
                 "suffix": "",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [
                     200
                 ],
@@ -216,7 +217,7 @@
             "probe": {
                 "suffix": "",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [],
                 "result_format": "XML"
             },
@@ -252,7 +253,7 @@
             "probe": {
                 "suffix": "/catalog.xml",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [],
                 "result_format": "XML"
             },
@@ -364,7 +365,7 @@
             "probe": {
                 "suffix": "?wsdl",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [],
                 "result_format": "XML"
             },
@@ -451,7 +452,7 @@
             "probe": {
                 "suffix": "",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [],
                 "result_format": "XML"
             },
@@ -907,7 +908,7 @@
             },
             "comment": "No unified capabilities endpoint. ProductServer.do is the official HTML health check (returns a page starting with 'This is the ... LAS Product Server'). GUI metadata available at /las/getCategories.do (returns JSON). Format for data products is controlled via LAS request properties, not HTTP Accept."
         },
-        "AMPQ": {
+        "AMQP": {
             "title": "Advanced Message Queuing Protocol",
             "fairsharing_doi": null,
             "cpp": null,
@@ -1013,7 +1014,7 @@
             "probe": {
                 "suffix": "?op=ping",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
@@ -1062,7 +1063,7 @@
                 "suffix": "",
                 "method": "POST",
                 "body": "<request><metadata/></request>",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
@@ -1278,7 +1279,7 @@
             "probe": {
                 "suffix": "?service=SOS&request=GetCapabilities&acceptVersions=2.0.0",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
@@ -1370,7 +1371,7 @@
             "probe": {
                 "suffix": "?RA=0&DEC=90&SR=0",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
@@ -1496,7 +1497,7 @@
             "probe": {
                 "suffix": "?FORMAT=METADATA",
                 "method": "GET",
-                "accept": "text/xml",
+                "accept": "text/xml, application/xml",
                 "expected_status_codes": [200],
                 "result_format": "XML"
             },
