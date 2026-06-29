@@ -25,7 +25,7 @@ RSS;https://www.rssboard.org/rss-specification;Really Simple Syndication;doc;;;;
 ATOM;https://www.ietf.org/rfc/rfc4287.txt;The Atom Syndication Format;doc;;;;;;;;;;;
 FAIRiCat;https://signposting.org/FAIRiCat/;FAIRiCat: Supporting Discovery of a Repository's Interoperability Affordances;doc;;;;;;;;;;;
 LAS;https://ferret.pmel.noaa.gov/LAS/;Live Access Server;doc;;;;;;;;;;;
-AMPQ;https://www.amqp.org/resources/specifications;Advanced Message Queuing Protocol;doc;;;;;;;;;;;
+AMQP;https://www.amqp.org/resources/specifications;Advanced Message Queuing Protocol;doc;;;;;;;;;;;
 MQTT;https://mqtt.org/mqtt-specification/;Message Queuing Telemetry Transport ;doc;;;;;;;;;;;
 XMPP;https://datatracker.ietf.org/doc/rfc6120/;Extensible Messaging and Presence Protocol;doc;;;;;;;;;;;
 TAPIR;https://www.tdwg.org/standards/tapir/;TDWG Access Protocol for Information Retrieval;doc;;;;;;;;;;;
