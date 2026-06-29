@@ -31,6 +31,37 @@ It provides three modes of operation:
     # Edit .env with your Fuseki credentials and identifier URL
     ```
 
+## Project Structure
+
+The repository is organized by responsibility. Run all commands from the repository
+root so the `controllers` and `core` packages resolve on the import path.
+
+```
+service-validator/
+├── controllers/          # Entry points — the three modes of operation
+│   ├── api.py            #   FastAPI web service (uvicorn controllers.api:app)
+│   ├── check_service.py  #   CLI: validate a single URL
+│   └── batch_validator.py#   CLI: batch-validate from Fuseki (or a CSV)
+├── core/                 # Validation engine and helpers
+│   ├── validator.py      #   ServiceValidator — scoring, content checks, fallbacks
+│   ├── type_resolver.py  #   Infers service type via the wp2-service-identifier API
+│   └── fuseki_loader.py  #   Queries harmonized graphs from the Fuseki SPARQL store
+├── config/               # Data-driven configuration
+│   ├── service_profiles.json        # Validation rules/signatures (synced in, not edited here)
+│   └── service_profiles.schema.json # JSON Schema for the profiles
+├── data/                 # Input fixtures (e.g. legacy CSV for --input mode)
+├── output/               # Generated results (gitignored)
+├── scripts/              # Dev/diagnostic one-offs (gitignored)
+└── tests/                # Local test suite (gitignored)
+```
+
+| Layer | Holds | Notes |
+|-------|-------|-------|
+| `controllers/` | The API and two CLIs | Each is a thin entry point that wires together `core` components. |
+| `core/` | The reusable validation logic | No CLI/HTTP concerns; imported by every controller. |
+| `config/` | Rules and schema | `service_profiles.json` is synced from the source of truth — edit it there, not here. |
+| `data/` / `output/` | Inputs vs. generated artifacts | Batch results default to `output/`. |
+
 ## Usage
 
 ### 1. Web Service (FastAPI)
@@ -38,8 +69,9 @@ It provides three modes of operation:
 Run the web server to expose a validation API.
 
 ```bash
-uvicorn main:app --reload
+uvicorn controllers.api:app --reload
 ```
+*(Run from the repository root so the `core` and `controllers` packages resolve.)*
 *   The server will start at `http://127.0.0.1:8000`.
 *   **Interactive Docs:** Open `http://127.0.0.1:8000/docs` to test the API in your browser.
 *   **Example Request (type known):** `GET /validate?url=https://example.com/oai&service_type=OAI-PMH`
@@ -52,16 +84,16 @@ Check a specific URL directly from the terminal.
 
 ```bash
 # With explicit type
-python check_service.py --url "https://example.com/oai" --type OAI-PMH
+python -m controllers.check_service --url "https://example.com/oai" --type OAI-PMH
 
 # Without type — identifier is queried automatically
-python check_service.py --url "https://example.com/oai"
+python -m controllers.check_service --url "https://example.com/oai"
 ```
 
 You can also run the script with no arguments for an interactive prompt:
 
 ```
-python check_service.py
+python -m controllers.check_service
 --- Manual Service Check ---
 Enter Service URL: https://example.com/oai --type OAI-PMH
 ```
@@ -87,13 +119,13 @@ Validate all service endpoints queried directly from your Fuseki store.
 
 2.  Run the batch script:
     ```bash
-    python batch_validator.py
+    python -m controllers.batch_validator
     ```
     *(Optional: override the Fuseki endpoint with `--fuseki http://your-url/query`)*
 
-3.  **Outputs:**
-    *   `validation_results.csv`: Validation results including `score`, `resolution_method`, and `inferred_type` columns.
-    *   `conformsTo_mismatches.csv`: A report of harvested `dct:conformsTo` URLs that could not be automatically resolved. Use this for manual review to update `service_profiles.json`.
+3.  **Outputs** (written to `output/`):
+    *   `output/validation_results.csv`: Validation results including `score`, `resolution_method`, and `inferred_type` columns.
+    *   `output/conformsTo_mismatches.csv`: A report of harvested `dct:conformsTo` URLs that could not be automatically resolved. Use this for manual review to update `service_profiles.json`.
 
 #### Batch options
 
@@ -101,13 +133,13 @@ Validate all service endpoints queried directly from your Fuseki store.
 |------|--------|
 | *(none)* | Default: resolve via `conformsTo` → `serviceTitle` → identifier fallback |
 | `--no-identifier` | Disable identifier fallback; records with no resolvable type are recorded as errors |
-| `--force-identifier` | Skip `conformsTo` and `serviceTitle` resolution; use the identifier for every record (output saved to `validation_results_forced-identifier.csv`) |
+| `--force-identifier` | Skip `conformsTo` and `serviceTitle` resolution; use the identifier for every record (output saved to `output/validation_results_forced-identifier.csv`) |
 
 > **Note on `--force-identifier`:** This mode is useful for evaluating the identifier's accuracy — compare its `mapped_service_type` output against known `conforms_to` values. Because the identifier and validator share overlapping signals (body signatures, content-type), the validation score in this mode is not an independent conformance check.
 
 **(Legacy CSV Mode):** If you still want to validate from a CSV file instead of Fuseki:
 ```bash
-python batch_validator.py --input "repository services.csv"
+python -m controllers.batch_validator --input "data/repository services.csv"
 ```
 
 ## Type resolution priority

@@ -5,8 +5,8 @@ import shlex
 from dotenv import load_dotenv
 load_dotenv()
 
-from Validator import ServiceValidator
-from type_resolver import resolve_type
+from core.validator import ServiceValidator
+from core.type_resolver import resolve_type
 
 def main():
     parser = argparse.ArgumentParser(description="Check a single service endpoint.")

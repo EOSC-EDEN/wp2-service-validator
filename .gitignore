@@ -219,22 +219,15 @@ __marimo__/
 ~$*
 
 # Local-only test suite
-test_ftp_validation.py
-test_fuseki_loader.py
-test_mappings_logic.py
-test_scoring.py
-test_type_resolver.py
-test_examples/
+tests/
 
-# Generated validation output
-validation_results*.csv
-alternative_validation_results.csv
-conformsTo_mismatches.csv
-queryResults.csv
+# Generated validation output (keep the folder, ignore its contents)
+output/*
+!output/.gitkeep
 
 # Research / reference material (large binaries)
-Knowledge/
-Google_Drive_Export/
+docs/Knowledge/
+docs/Knowledge/Google_Drive_Export/
 
 # Local working material (plans, requirements, specs)
 _working/
@@ -242,5 +235,5 @@ docs/
 requirements/
 
 # Local scratch
-explore_fuseki_graphs.py
-services_default_queries_jw.csv
+scripts/
+data/services_default_queries_jw.csv

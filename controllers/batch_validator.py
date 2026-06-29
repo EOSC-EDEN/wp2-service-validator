@@ -6,9 +6,9 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-from Validator import ServiceValidator
-from fuseki_loader import FusekiLoader
-from type_resolver import resolve_type
+from core.validator import ServiceValidator
+from core.fuseki_loader import FusekiLoader
+from core.type_resolver import resolve_type
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -59,11 +59,11 @@ def run_batch_validation():
         help='SPARQL endpoint URL for the Fuseki store (default: %(default)s).'
     )
     parser.add_argument(
-        '--output', default='validation_results.csv',
+        '--output', default='output/validation_results.csv',
         help='Path for the validation results CSV (default: %(default)s).'
     )
     parser.add_argument(
-        '--mismatches', default='conformsTo_mismatches.csv',
+        '--mismatches', default='output/conformsTo_mismatches.csv',
         help='Path for the conformsTo mismatch report CSV (default: %(default)s).'
     )
     parser.add_argument(

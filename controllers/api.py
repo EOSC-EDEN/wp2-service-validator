@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Query
-from Validator import ServiceValidator
-from type_resolver import resolve_type
+from core.validator import ServiceValidator
+from core.type_resolver import resolve_type
 import uvicorn
 
 app = FastAPI(
@@ -88,12 +88,11 @@ def validate_endpoint(
     return result
 
 if __name__ == "__main__":
-    # This block allows running the app directly from PyCharm or the command line
-    # uvicorn main:app --reload
+    # Run from the repository root so the `core`/`controllers` packages resolve:
+    #   python -m controllers.api
     uvicorn.run(app, host="127.0.0.1", port=8000)
 
-# To run this service:
+# To run this service (from the repository root):
 # 1. Install dependencies: pip install -r requirements.txt
-# 2. Run from your terminal: uvicorn main:app --reload
-# 3. Or run this file directly in PyCharm.
-# 4. Open your browser to http://127.0.0.1:8000/docs to see the interactive API documentation.
+# 2. Run from your terminal: uvicorn controllers.api:app --reload
+# 3. Open your browser to http://127.0.0.1:8000/docs to see the interactive API documentation.

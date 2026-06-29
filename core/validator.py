@@ -34,7 +34,7 @@ class ServiceValidator:
         Raises FileNotFoundError / ValueError on missing or corrupt configuration
         so the application fails fast at startup rather than silently misbehaving.
         """
-        profile_path = os.path.join(os.path.dirname(__file__), 'service_profiles.json')
+        profile_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'service_profiles.json')
         try:
             with open(profile_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
