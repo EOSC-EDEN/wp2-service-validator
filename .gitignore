@@ -1,3 +1,4 @@
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -208,3 +209,38 @@ __marimo__/
 
 # Git worktrees
 .worktrees/
+
+# ---- Project-local clutter (kept on disk, not shared) ----
+
+# JetBrains IDE
+.idea/
+
+# Office temp / lock files
+~$*
+
+# Local-only test suite
+test_ftp_validation.py
+test_fuseki_loader.py
+test_mappings_logic.py
+test_scoring.py
+test_type_resolver.py
+test_examples/
+
+# Generated validation output
+validation_results*.csv
+alternative_validation_results.csv
+conformsTo_mismatches.csv
+queryResults.csv
+
+# Research / reference material (large binaries)
+Knowledge/
+Google_Drive_Export/
+
+# Local working material (plans, requirements, specs)
+_working/
+docs/
+requirements/
+
+# Local scratch
+explore_fuseki_graphs.py
+services_default_queries_jw.csv
