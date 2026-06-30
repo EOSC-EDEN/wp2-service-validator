@@ -1,0 +1,451 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "service_profiles.schema.json",
+    "title": "EDEN Service Validator — Service Profiles Schema",
+    "description": "Defines the structure of service_profiles.json, the single source of truth for all service validation knowledge. Replaces services_default_queries.csv, validation_config.json, and the hardcoded 'patterns' dict in Validator.py.",
+    "type": "object",
+    "required": [
+        "meta",
+        "global",
+        "service_profiles"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "description": "URI of the JSON Schema this document conforms to. Always 'https://json-schema.org/draft/2020-12/schema'."
+        },
+        "meta": {
+            "type": "object",
+            "description": "Top-level metadata about the file itself.",
+            "required": [
+                "version",
+                "description"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "version": {
+                    "type": "string",
+                    "description": "Semantic version of this configuration file (e.g. '1.0.0'). Increment when adding profiles or making breaking changes to field semantics.",
+                    "examples": [
+                        "1.0.0"
+                    ]
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Human-readable summary of what this file contains and its role in the system."
+                }
+            }
+        },
+        "global": {
+            "type": "object",
+            "description": "Cross-cutting keyword lists that apply to ALL service types regardless of protocol. These were formerly stored in validation_config.json.",
+            "required": [
+                "api_doc_keywords",
+                "decommissioned_keywords"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "_comment": {
+                    "type": "string",
+                    "description": "Optional free-text comment for maintainers. Not read by the validator."
+                },
+                "api_doc_keywords": {
+                    "type": "array",
+                    "description": "Lowercase keywords/phrases that, if found in an HTML response body, indicate the URL points to a human-readable API documentation page rather than a live service endpoint. Matched case-insensitively against the first 50 000 characters of the response body. A match causes the validator to mark the URL as INVALID (documentation page). Add terms here when you observe false-positive validations caused by documentation sites being mistaken for live endpoints.",
+                    "items": {
+                        "type": "string",
+                        "description": "A single keyword or short phrase to search for (case-insensitive substring match).",
+                        "examples": [
+                            "swagger-ui",
+                            "rest api",
+                            "api documentation",
+                            "getting started"
+                        ]
+                    },
+                    "minItems": 1
+                },
+                "decommissioned_keywords": {
+                    "type": "array",
+                    "description": "Lowercase keywords/phrases that, if found in an HTML response body, indicate the service has been shut down, migrated, or retired. Checked before api_doc_keywords — a match causes the validator to mark the URL as INVALID (decommissioned). Add terms here when you encounter pages announcing service discontinuation that the validator does not catch automatically.",
+                    "items": {
+                        "type": "string",
+                        "description": "A single keyword or short phrase (case-insensitive substring match).",
+                        "examples": [
+                            "decommissioned",
+                            "migrated to",
+                            "no longer accessible",
+                            "end of life"
+                        ]
+                    },
+                    "minItems": 1
+                }
+            }
+        },
+        "service_profiles": {
+            "type": "object",
+            "description": "A map from Acronym (service type identifier) to its profile object. The Acronym is the canonical key used throughout the system — it must exactly match the value in the 'Type' column of the input CSV (e.g. 'OAI-PMH', 'SPARQL', 'FTP'). Every known Acronym must have an entry here, even if that entry only has stub/empty probe and validation blocks.",
+            "additionalProperties": {
+                "$ref": "#/$defs/ServiceProfile"
+            }
+        }
+    },
+    "$defs": {
+        "ServiceProfile": {
+            "type": "object",
+            "description": "The full validation profile for a single service type. Groups all information needed to probe, identify, and validate an instance of this protocol.",
+            "required": [
+                "title",
+                "fairsharing_doi",
+                "cpp",
+                "spec_urls",
+                "probe",
+                "validation",
+                "special"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "Full human-readable name of the protocol or service type.",
+                    "examples": [
+                        "Open Archives Initiative - Protocol for Metadata Harvesting",
+                        "SPARQL Query Language"
+                    ]
+                },
+                "fairsharing_doi": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "DOI URL of the FAIRsharing record for this protocol, if one exists (e.g. 'https://doi.org/10.25504/FAIRsharing.0417cf'). Set to null if no FAIRsharing record exists.",
+                    "examples": [
+                        "https://doi.org/10.25504/FAIRsharing.0417cf",
+                        null
+                    ]
+                },
+                "cpp": {
+                    "type": [
+                        "array",
+                        "null"
+                    ],
+                    "description": "List of EOSC EDEN Core Preservation Process (CPP) identifiers that this service type is relevant to. CPPs are specific actions every Trustworthy Digital Archive should undertake to fulfil its digital preservation mission. See https://github.com/EOSC-EDEN/wp1-cpp-descriptions for identifiers and descriptions. Set to null if no CPP mapping has been defined yet.",
+                    "items": {
+                        "type": "string",
+                        "description": "A single CPP identifier string (format TBD per the EOSC EDEN WP1 specification)."
+                    },
+                    "examples": [
+                        null,
+                        [
+                            "CPP-001",
+                            "CPP-005"
+                        ]
+                    ]
+                },
+                "spec_urls": {
+                    "type": "array",
+                    "description": "All specification, standard, and namespace URLs associated with this service type. Replaces the multiple CSV rows that existed per Acronym (e.g. one row for the doc URL, another for the namespace URL). At least one entry is required.",
+                    "items": {
+                        "$ref": "#/$defs/SpecUrl"
+                    },
+                    "minItems": 1
+                },
+                "probe": {
+                    "$ref": "#/$defs/Probe"
+                },
+                "validation": {
+                    "$ref": "#/$defs/Validation"
+                },
+                "special": {
+                    "$ref": "#/$defs/Special"
+                },
+                "comment": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Optional free-text note for maintainers: e.g. behavioural quirks, known edge cases, authentication details, or a 'STUB: details TBD' marker for incomplete profiles."
+                }
+            }
+        },
+        "SpecUrl": {
+            "type": "object",
+            "description": "A single specification or namespace URL entry for a service type.",
+            "required": [
+                "url",
+                "role"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The URL or URI of the specification document, namespace, or standard. May use non-HTTP schemes such as ivo:// (IVOA registry identifiers).",
+                    "examples": [
+                        "https://www.openarchives.org/OAI/openarchivesprotocol.html",
+                        "http://www.openarchives.org/OAI/2.0/",
+                        "ivo://ivoa.net/std/TAP"
+                    ]
+                },
+                "role": {
+                    "type": "string",
+                    "description": "The role of this URL: 'doc' = human-readable specification document; 'namespace' = XML/RDF namespace URI; 'identifier' = non-HTTP protocol identifier (e.g. ivo://).",
+                    "enum": [
+                        "doc",
+                        "namespace",
+                        "identifier"
+                    ],
+                    "examples": [
+                        "doc",
+                        "namespace",
+                        "identifier"
+                    ]
+                }
+            }
+        },
+        "Probe": {
+            "type": "object",
+            "description": "Defines how the validator sends an HTTP request to probe a candidate endpoint. The base URL of the endpoint is taken from the input data; the suffix is appended to construct the actual probe URL. For non-HTTP protocols (FTP), most fields are unused — see special.use_ftp_validator.",
+            "required": [
+                "suffix",
+                "method",
+                "accept",
+                "expected_status_codes",
+                "result_format"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "suffix": {
+                    "type": "string",
+                    "description": "Path or query string to append to the endpoint base URL to form the probe URL. Use an empty string '' to probe the base URL directly. The placeholder '{endpointURI}' (legacy from the CSV) is stripped if present. Examples: '?verb=Identify' for OAI-PMH, '/catalog.xml' for THREDDS, '/openapi.json' for OpenAPI, '' for SPARQL.",
+                    "examples": [
+                        "?verb=Identify",
+                        "/catalog.xml",
+                        "/openapi.json",
+                        ".html",
+                        "?wsdl",
+                        ""
+                    ]
+                },
+                "method": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "HTTP method to use for the probe request. Almost always 'GET'. Set to null for non-HTTP protocols (e.g. FTP, MQTT, AMQP) where the probe is handled by a specialised validator rather than an HTTP request.",
+                    "enum": [
+                        "GET",
+                        "POST",
+                        "HEAD",
+                        null
+                    ],
+                    "examples": [
+                        "GET",
+                        null
+                    ]
+                },
+                "accept": {
+                    "type": "string",
+                    "description": "The MIME type to set in the HTTP Accept header of the probe request. Use an empty string '' if no specific Accept header should be sent (e.g. ERDDAP, stub profiles). Comma-separated values are allowed for types that accept multiple formats.",
+                    "examples": [
+                        "text/xml",
+                        "application/json",
+                        "application/ld+json",
+                        "application/rdf+xml",
+                        ""
+                    ]
+                },
+                "expected_status_codes": {
+                    "type": "array",
+                    "description": "HTTP status codes that are considered valid/expected responses from this service type. An empty list [] means any successful (2xx) code is acceptable. A 401 here means the validator treats an authentication challenge as confirming the service exists (e.g. SWORD). A 405 here means the validator treats 'Method Not Allowed' as confirming the endpoint exists (e.g. LDN inbox). Note: the special.accept_405_as_valid flag is preferred for 405 handling — see that field.",
+                    "items": {
+                        "type": "integer",
+                        "description": "An HTTP status code integer.",
+                        "examples": [
+                            200,
+                            400,
+                            401,
+                            405
+                        ]
+                    },
+                    "examples": [
+                        [
+                            200
+                        ],
+                        [
+                            200,
+                            401
+                        ],
+                        [
+                            200,
+                            405
+                        ],
+                        []
+                    ]
+                },
+                "result_format": {
+                    "type": "string",
+                    "description": "Human-readable label for the expected response format. Informational only — not used by the validator logic. Examples: 'XML', 'JSON', 'JSON-LD', 'RDF', 'HTML', 'FTP'. Use empty string for stub profiles.",
+                    "examples": [
+                        "XML",
+                        "JSON",
+                        "JSON-LD",
+                        "RDF",
+                        "HTML",
+                        "FTP",
+                        ""
+                    ]
+                }
+            }
+        },
+        "Validation": {
+            "type": "object",
+            "description": "Defines how the validator checks whether a response actually represents the expected service type. Combines information formerly in the CSV 'distinctive property'/'distinctive namespace' columns and the hardcoded 'patterns' dict in Validator.py._is_strict_content_match().",
+            "required": [
+                "body_signatures",
+                "distinctive_element",
+                "distinctive_namespace",
+                "require_body_and_ct"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "body_signatures": {
+                    "type": "array",
+                    "description": "A list of patterns that identify this service type from the response body text. The validator checks whether at least one signature matches the first 50 000 characters of the response body (lowercased). An empty list [] disables body-signature matching for this type. Replaces the hardcoded 'patterns' dict in Validator.py._is_strict_content_match().",
+                    "items": {
+                        "$ref": "#/$defs/BodySignature"
+                    },
+                    "examples": [
+                        [
+                            {
+                                "pattern": "<oai-pmh",
+                                "mode": "substring"
+                            },
+                            {
+                                "pattern": "^<OAI-PMH xmlns",
+                                "mode": "regex"
+                            }
+                        ]
+                    ]
+                },
+                "distinctive_element": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "A single XML element name, JSON key, or other string that is characteristic of this service type's response (from the CSV 'distinctive property' column). Informational/documentation purposes — the body_signatures array is what the validator actually uses at runtime. Set to null if not applicable.",
+                    "examples": [
+                        "<OAI-PMH>",
+                        "ldp:contains",
+                        "openapi",
+                        "<rdf:RDF",
+                        null
+                    ]
+                },
+                "distinctive_namespace": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "The XML or RDF namespace URI that is distinctive for this service type (from the CSV 'distinctive namespace' column). Informational/documentation purposes — include the namespace as a body_signature entry if you want it to be actively matched at runtime. Set to null if not applicable.",
+                    "examples": [
+                        "http://www.openarchives.org/OAI/2.0/",
+                        "http://www.w3.org/ns/ldp#",
+                        null
+                    ]
+                },
+                "require_body_and_ct": {
+                    "type": "boolean",
+                    "description": "When true, BOTH the Content-Type header AND at least one body_signature must match for the validation to succeed. Use this for service types whose accept MIME type is too generic to trust alone (currently only NetCDF, which uses text/html). When false (the default), either a Content-Type match OR a body_signature match is sufficient.",
+                    "default": false,
+                    "examples": [
+                        false,
+                        true
+                    ]
+                }
+            }
+        },
+        "BodySignature": {
+            "type": "object",
+            "description": "A single body signature pattern used to identify a service type from the response body.",
+            "required": [
+                "pattern",
+                "mode"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "The pattern string. For mode 'substring': a literal string to search for (case-insensitive, matched against lowercased body). For mode 'regex': a Python-compatible regular expression applied with re.IGNORECASE to the first 50 000 characters of the raw body.",
+                    "examples": [
+                        "<oai-pmh",
+                        "xmlns:oai",
+                        "\"openapi\"",
+                        "sparql-results",
+                        "^<\\?xml.*encoding"
+                    ]
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "Matching mode: 'substring' performs a simple case-insensitive substring search. 'regex' applies the pattern as a Python re regular expression with re.IGNORECASE.",
+                    "enum": [
+                        "substring",
+                        "regex"
+                    ],
+                    "examples": [
+                        "substring",
+                        "regex"
+                    ]
+                }
+            }
+        },
+        "Special": {
+            "type": "object",
+            "description": "Boolean flags for protocol-specific edge-case behaviours. These flags allow Validator.py to remain generic — rather than hard-coding 'if expected_type == X' branches, the validator reads these flags from the profile and activates the corresponding behaviour at runtime.",
+            "required": [
+                "accept_405_as_valid",
+                "ldn_inbox_discovery",
+                "detect_http_wrapped_ftp",
+                "use_ftp_validator"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "accept_405_as_valid": {
+                    "type": "boolean",
+                    "description": "If true, a 405 Method Not Allowed response from the service endpoint is treated as VALID. This is used for LDN inboxes: per the LDN spec receivers MUST support GET and POST, but many real-world implementations restrict unauthenticated GET, returning 405. The 405 still confirms the inbox endpoint exists. The validator emits an explanatory note in this case.",
+                    "default": false,
+                    "examples": [
+                        false,
+                        true
+                    ]
+                },
+                "ldn_inbox_discovery": {
+                    "type": "boolean",
+                    "description": "If true, when the initial request does not match the expected LDN content, the validator additionally attempts to discover an LDN Inbox URL from the response. Discovery checks: (1) HTTP Link header for rel='http://www.w3.org/ns/ldp#inbox', (2) JSON-LD compact 'inbox' key in body, (3) Turtle/expanded IRI 'ldp:inbox <url>' in body, (4) HTML/RDFa href + rel='ldp#inbox'. If an inbox URL is found, the validator makes a second GET request to it. Only relevant for the LDN profile.",
+                    "default": false,
+                    "examples": [
+                        false,
+                        true
+                    ]
+                },
+                "detect_http_wrapped_ftp": {
+                    "type": "boolean",
+                    "description": "If true, the validator checks whether an HTTP response is actually an FTP-style directory listing served over HTTP (e.g. Apache mod_autoindex, a web-fronted FTP archive). Such responses have Content-Type text/html but contain markers like 'Index of /', 'FTP directory', 'Parent directory'. If detected, the URL is marked INVALID with an explanatory note. Only relevant for the FTP profile.",
+                    "default": false,
+                    "examples": [
+                        false,
+                        true
+                    ]
+                },
+                "use_ftp_validator": {
+                    "type": "boolean",
+                    "description": "If true, real ftp:// scheme URLs are routed to the dedicated FTP validator (_validate_ftp_url via ftplib) instead of the standard HTTP requests pipeline. The FTP validator synthesises HTTP-like status codes for consistency: 200 = successful anonymous connection + directory listing, 550 = path not found or connection error. Only relevant for the FTP profile.",
+                    "default": false,
+                    "examples": [
+                        false,
+                        true
+                    ]
+                }
+            }
+        }
+    }
+}
