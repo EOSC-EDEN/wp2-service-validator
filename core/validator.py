@@ -613,6 +613,49 @@ class ServiceValidator:
         result.pop('_response_text', None)  # internal field; must not leak to callers
         return result
 
+    @staticmethod
+    def _probe_request_content_type(probe: dict) -> str:
+        """
+        Best-effort request Content-Type for a probe body, derived from the profile's
+        result_format. DiGIR-style XML bodies map to text/xml; JSON to application/json.
+        Defaults to text/xml (the only current body consumer is XML-based).
+        """
+        fmt = (probe.get('result_format') or '').upper()
+        if fmt == 'JSON':
+            return 'application/json'
+        return 'text/xml'
+
+    def _probe_request(self, url: str, headers: dict, config: dict, allow_redirects: bool = True):
+        """
+        Issues a probe request honouring the profile's probe.method and probe.body.
+
+        - method "POST" with a non-empty body -> requests.post(url, data=body), with an
+          XML/JSON request Content-Type derived from result_format.
+        - everything else (GET, or POST without a body) -> requests.get(url).
+
+        Centralises the GET-vs-POST-with-body decision so every probe site (the main
+        probe and the magic-URL fallback) behaves consistently.
+        """
+        probe = config.get('probe', {})
+        method = (probe.get('method') or 'GET').upper()
+        body = probe.get('body')
+        if method == 'POST' and body:
+            post_headers = headers.copy()
+            post_headers.setdefault('Content-Type', self._probe_request_content_type(probe))
+            return requests.post(
+                url, data=body.encode('utf-8'), headers=post_headers,
+                timeout=self.timeout, allow_redirects=allow_redirects,
+            )
+        return requests.get(
+            url, headers=headers, timeout=self.timeout, allow_redirects=allow_redirects,
+        )
+
+    @staticmethod
+    def _is_post_body_probe(config: dict) -> bool:
+        """True when the profile's probe is a POST carrying a request body."""
+        probe = config.get('probe', {})
+        return (probe.get('method') or 'GET').upper() == 'POST' and bool(probe.get('body'))
+
     def validate_url(self, url: str, expected_type: Optional[str] = None, conforms_to: Optional[str] = None, service_title: Optional[str] = None) -> dict:
         """
         Validates a URL with strict type checking logic:
@@ -654,13 +697,16 @@ class ServiceValidator:
             current_headers['Accept'] = f"{specific_accept};q=1.0, text/html;q=0.9, */*;q=0.8"
 
         try:
-            main_response = requests.get(url, headers=current_headers, timeout=self.timeout, allow_redirects=True)
+            # Main probe honours probe.method / probe.body (POST-with-body for DiGIR-style
+            # profiles; GET otherwise). See _probe_request.
+            main_response = self._probe_request(url, current_headers, config, allow_redirects=True)
 
             # --- Universal POST retry on 405 Method Not Allowed ---
             # If GET is blocked, try a POST with an empty body before any further checks.
             # This is intentionally universal: 405 on GET is rare, and a POST probe tells
             # us whether the endpoint is alive and processing requests at all.
-            if main_response.status_code == 405:
+            # Skipped for POST-body probes, which have already POSTed a real body.
+            if main_response.status_code == 405 and not self._is_post_body_probe(config):
                 self.logger.info(f"GET returned 405 for '{url}'. Retrying with POST (empty body).")
                 try:
                     post_response = requests.post(
@@ -1091,9 +1137,10 @@ class ServiceValidator:
         constructed_url = self._construct_probe_url(final_url, suffix)
 
         if constructed_url != final_url:
-            # A new, more specific URL was constructed — make a fresh request against it.
+            # A new, more specific URL was constructed — make a fresh request against it,
+            # honouring probe.method / probe.body just like the main probe.
             try:
-                response = requests.get(constructed_url, headers=headers_to_use, timeout=self.timeout)
+                response = self._probe_request(constructed_url, headers_to_use, config)
             except requests.RequestException as e:
                 return {"valid": False, "error": str(e), "url": constructed_url}
         # else: constructed_url == final_url means the suffix was empty and no new URL
