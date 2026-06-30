@@ -1046,11 +1046,11 @@
             "cpp": null,
             "spec_urls": [
                 {
-                    "url": "https://sourceforge.net/projects/digir/",
+                    "url": "https://digir.sourceforge.net/",
                     "role": "doc"
                 },
                 {
-                    "url": "http://digir.net/schema/protocol/2003/1.0",
+                    "url": "https://digir.sourceforge.net/schema/protocol/2003/1.0/digir.xsd",
                     "role": "namespace"
                 }
             ],
@@ -1083,7 +1083,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "Requires HTTP POST with a minimal XML DiGIR request body. Response is XML with root <response> in the DiGIR namespace. The probe body field contains the minimal metadata request."
+            "comment": "Requires HTTP POST with a minimal XML DiGIR request body. Response is XML with root <response> in the DiGIR namespace http://digir.net/schema/protocol/2003/1.0 — this is the canonical namespace URI emitted in real responses, and is what body_signatures and distinctive_namespace match against (correct, do not change). NOTE: the original digir.net domain has lapsed and now hosts unrelated commercial content; the namespace string remains the correct identifier but is no longer dereferenceable, so spec_urls points at the live, authoritative schema mirror on SourceForge (digir.sourceforge.net, targetNamespace = http://digir.net/schema/protocol/2003/1.0). DiGIR is a legacy biodiversity protocol superseded by TAPIR; no live DiGIR endpoint is currently known in the input data."
         },
         "OGC-CSW": {
             "title": "OGC Catalogue Service for the Web",
