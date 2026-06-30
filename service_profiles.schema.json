@@ -294,6 +294,17 @@
                         "FTP",
                         ""
                     ]
+                },
+                "body": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Optional request payload to send with the probe, for service types that require an HTTP POST with a specific body (e.g. DiGIR's minimal metadata request, used with method 'POST'). Consumed by the validator: when method is 'POST' and body is non-empty, the body is sent with the probe request (see core/validator.py); otherwise the probe is a GET. Omit or set to null when no body is needed.",
+                    "examples": [
+                        null,
+                        "<request><metadata/></request>"
+                    ]
                 }
             }
         },
@@ -439,6 +450,15 @@
                 "use_ftp_validator": {
                     "type": "boolean",
                     "description": "If true, real ftp:// scheme URLs are routed to the dedicated FTP validator (_validate_ftp_url via ftplib) instead of the standard HTTP requests pipeline. The FTP validator synthesises HTTP-like status codes for consistency: 200 = successful anonymous connection + directory listing, 550 = path not found or connection error. Only relevant for the FTP profile.",
+                    "default": false,
+                    "examples": [
+                        false,
+                        true
+                    ]
+                },
+                "unsupported": {
+                    "type": "boolean",
+                    "description": "If true, this service type cannot be validated over HTTP (e.g. it is a file format rather than a live network protocol). The validator short-circuits in validate() and returns an 'Unsupported/Cannot be verified' result without probing the endpoint. Read by Validator at runtime (see core/validator.py). Currently set only on the NetCDF profile.",
                     "default": false,
                     "examples": [
                         false,
