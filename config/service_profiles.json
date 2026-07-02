@@ -12,7 +12,6 @@
             "rest api",
             "api documentation",
             "api reference",
-            "NONSENSE API DOC KEYWORD",
             "developer guide",
             "endpoints",
             "usage guide",
@@ -178,6 +177,10 @@
                 {
                     "url": "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm",
                     "role": "doc"
+                },
+                {
+                    "url": "https://roy.gbiv.com/pubs/dissertation/rest_arch_style.htm",
+                    "role": "doc"
                 }
             ],
             "probe": {
@@ -202,7 +205,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "Generic REST endpoint. A 400 Bad Request on the base URL is acceptable — it indicates the server is live and responding to REST-style requests, even if the root path requires parameters."
+            "comment": "Generic REST endpoint. A 400 Bad Request on the base URL is acceptable — it indicates the server is live and responding to REST-style requests, even if the root path requires parameters. REST has no formal specification; the spec_urls point to the relevant chapter of Fielding's 2000 dissertation, which is the accepted reference. These URLs are non-functional for body scanning — no REST service embeds them in responses."
         },
         "OpenDAP": {
             "title": "OpenDAP",
@@ -296,11 +299,11 @@
             "validation": {
                 "body_signatures": [
                     {
-                        "pattern": "\"table\"",
-                        "mode": "substring"
+                        "pattern": "(?s)\"table\"\\s*:\\s*\\{\\s*\"columnnames\".*?\"columntypes\"",
+                        "mode": "regex"
                     }
                 ],
-                "distinctive_element": "table",
+                "distinctive_element": "columnNames",
                 "distinctive_namespace": null,
                 "require_body_and_ct": false
             },
@@ -310,7 +313,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "ERDDAP's /index.json returns a JSON object with a 'table' key listing all datasets."
+            "comment": "ERDDAP's .json endpoints (including /index.json) always return the ERDDAP table envelope: {\"table\":{\"columnNames\":[...],\"columnTypes\":[...],\"rows\":[...]}}. The body signature is a regex requiring \"table\" immediately followed by \"columnNames\" and \"columnTypes\" — far more specific than a bare \"table\" substring, which matched any JSON containing that word. ERDDAP has no formal specification — it uses DAP (Data Access Protocol), a RESTful protocol, as its underlying model. The ERDDAP server software is documented at https://github.com/ERDDAP/erddap and https://coastwatch.pfeg.noaa.gov/erddap/index.html."
         },
         "SPARQL": {
             "title": "SPARQL Query Language",
@@ -678,14 +681,6 @@
                 {
                     "url": "https://github.com/dewitt/opensearch/blob/master/opensearch-1-1-draft-6.md",
                     "role": "doc"
-                },
-                {
-                    "url": "http://www.opensearch.org/Specifications/OpenSearch/1.1",
-                    "role": "doc"
-                },
-                {
-                    "url": "http://a9.com/-/spec/opensearch/1.1/",
-                    "role": "namespace"
                 }
             ],
             "probe": {
@@ -914,7 +909,7 @@
             "cpp": null,
             "spec_urls": [
                 {
-                    "url": "https://www.amqp.org/resources/specifications",
+                    "url": "https://docs.oasis-open.org/amqp/core/v1.0/os/amqp-core-overview-v1.0-os.html",
                     "role": "doc"
                 }
             ],
@@ -945,7 +940,7 @@
             "cpp": null,
             "spec_urls": [
                 {
-                    "url": "https://mqtt.org/mqtt-specification/",
+                    "url": "https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html",
                     "role": "doc"
                 }
             ],
@@ -1051,11 +1046,11 @@
             "cpp": null,
             "spec_urls": [
                 {
-                    "url": "https://sourceforge.net/projects/digir/",
+                    "url": "https://digir.sourceforge.net/",
                     "role": "doc"
                 },
                 {
-                    "url": "http://digir.net/schema/protocol/2003/1.0",
+                    "url": "https://digir.sourceforge.net/schema/protocol/2003/1.0/digir.xsd",
                     "role": "namespace"
                 }
             ],
@@ -1088,7 +1083,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "Requires HTTP POST with a minimal XML DiGIR request body. Response is XML with root <response> in the DiGIR namespace. The probe body field contains the minimal metadata request."
+            "comment": "Requires HTTP POST with a minimal XML DiGIR request body. Response is XML with root <response> in the DiGIR namespace http://digir.net/schema/protocol/2003/1.0 — this is the canonical namespace URI emitted in real responses, and is what body_signatures and distinctive_namespace match against (correct, do not change). NOTE: the original digir.net domain has lapsed and now hosts unrelated commercial content; the namespace string remains the correct identifier but is no longer dereferenceable, so spec_urls points at the live, authoritative schema mirror on SourceForge (digir.sourceforge.net, targetNamespace = http://digir.net/schema/protocol/2003/1.0). DiGIR is a legacy biodiversity protocol superseded by TAPIR; no live DiGIR endpoint is currently known in the input data."
         },
         "OGC-CSW": {
             "title": "OGC Catalogue Service for the Web",
@@ -1381,7 +1376,11 @@
                     {"pattern": "query_status", "mode": "substring"}
                 ],
                 "distinctive_element": "<VOTABLE",
-                "distinctive_namespace": null,
+                "distinctive_namespace": [
+                    "http://www.ivoa.net/xml/VOTable/v1.1",
+                    "http://www.ivoa.net/xml/VOTable/v1.2",
+                    "http://www.ivoa.net/xml/VOTable/v1.3"
+                ],
                 "require_body_and_ct": false
             },
             "special": {
@@ -1423,7 +1422,11 @@
                     {"pattern": "<resource type=\"results\"", "mode": "substring"}
                 ],
                 "distinctive_element": "<VOTABLE",
-                "distinctive_namespace": "http://www.ivoa.net/xml/VOTable/v1.3",
+                "distinctive_namespace": [
+                    "http://www.ivoa.net/xml/VOTable/v1.1",
+                    "http://www.ivoa.net/xml/VOTable/v1.2",
+                    "http://www.ivoa.net/xml/VOTable/v1.3"
+                ],
                 "require_body_and_ct": false
             },
             "special": {
@@ -1465,7 +1468,11 @@
                     {"pattern": "query_status", "mode": "substring"}
                 ],
                 "distinctive_element": "<VOTABLE",
-                "distinctive_namespace": "http://www.ivoa.net/xml/SSA/v1.1",
+                "distinctive_namespace": [
+                    "http://www.ivoa.net/xml/VOTable/v1.1",
+                    "http://www.ivoa.net/xml/VOTable/v1.2",
+                    "http://www.ivoa.net/xml/VOTable/v1.3"
+                ],
                 "require_body_and_ct": false
             },
             "special": {
@@ -1507,7 +1514,11 @@
                     {"pattern": "query_status", "mode": "substring"}
                 ],
                 "distinctive_element": "<VOTABLE",
-                "distinctive_namespace": "http://www.ivoa.net/xml/SimpleSpectrumLineDM/SimpleSpectrumLineDM-v1.0.xsd",
+                "distinctive_namespace": [
+                    "http://www.ivoa.net/xml/VOTable/v1.1",
+                    "http://www.ivoa.net/xml/VOTable/v1.2",
+                    "http://www.ivoa.net/xml/VOTable/v1.3"
+                ],
                 "require_body_and_ct": false
             },
             "special": {
