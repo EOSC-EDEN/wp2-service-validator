@@ -294,6 +294,17 @@
                         "FTP",
                         ""
                     ]
+                },
+                "body": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "Optional request payload to send with the probe, for service types that require an HTTP POST with a specific body (e.g. DiGIR's minimal metadata request, used with method 'POST'). Consumed by the validator: when method is 'POST' and body is non-empty, the body is sent with the probe request (see core/validator.py); otherwise the probe is a GET. Omit or set to null when no body is needed.",
+                    "examples": [
+                        null,
+                        "<request><metadata/></request>"
+                    ]
                 }
             }
         },
@@ -344,12 +355,21 @@
                 "distinctive_namespace": {
                     "type": [
                         "string",
+                        "array",
                         "null"
                     ],
-                    "description": "The XML or RDF namespace URI that is distinctive for this service type (from the CSV 'distinctive namespace' column). Informational/documentation purposes — include the namespace as a body_signature entry if you want it to be actively matched at runtime. Set to null if not applicable.",
+                    "description": "The XML or RDF namespace URI that is distinctive for this service type (from the CSV 'distinctive namespace' column). Informational/documentation purposes — include the namespace as a body_signature entry if you want it to be actively matched at runtime. Usually a single string. MAY be an array of strings when a service type can legitimately carry one of several distinct namespace URIs — e.g. the version-specific VOTable namespaces (v1.1, v1.2, v1.3) emitted by IVOA DAL services that return VOTable documents. Set to null if not applicable.",
+                    "items": {
+                        "type": "string",
+                        "description": "A single namespace URI; used when distinctive_namespace is given as an array of alternatives."
+                    },
                     "examples": [
                         "http://www.openarchives.org/OAI/2.0/",
-                        "http://www.w3.org/ns/ldp#",
+                        [
+                            "http://www.ivoa.net/xml/VOTable/v1.1",
+                            "http://www.ivoa.net/xml/VOTable/v1.2",
+                            "http://www.ivoa.net/xml/VOTable/v1.3"
+                        ],
                         null
                     ]
                 },
@@ -439,6 +459,15 @@
                 "use_ftp_validator": {
                     "type": "boolean",
                     "description": "If true, real ftp:// scheme URLs are routed to the dedicated FTP validator (_validate_ftp_url via ftplib) instead of the standard HTTP requests pipeline. The FTP validator synthesises HTTP-like status codes for consistency: 200 = successful anonymous connection + directory listing, 550 = path not found or connection error. Only relevant for the FTP profile.",
+                    "default": false,
+                    "examples": [
+                        false,
+                        true
+                    ]
+                },
+                "unsupported": {
+                    "type": "boolean",
+                    "description": "If true, this service type cannot be validated over HTTP (e.g. it is a file format rather than a live network protocol). The validator short-circuits in validate() and returns an 'Unsupported/Cannot be verified' result without probing the endpoint. Read by Validator at runtime (see core/validator.py). Currently set only on the NetCDF profile.",
                     "default": false,
                     "examples": [
                         false,
