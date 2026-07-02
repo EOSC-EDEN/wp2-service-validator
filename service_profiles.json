@@ -299,11 +299,11 @@
             "validation": {
                 "body_signatures": [
                     {
-                        "pattern": "\"table\"",
-                        "mode": "substring"
+                        "pattern": "(?s)\"table\"\\s*:\\s*\\{\\s*\"columnnames\".*?\"columntypes\"",
+                        "mode": "regex"
                     }
                 ],
-                "distinctive_element": "table",
+                "distinctive_element": "columnNames",
                 "distinctive_namespace": null,
                 "require_body_and_ct": false
             },
@@ -313,7 +313,7 @@
                 "detect_http_wrapped_ftp": false,
                 "use_ftp_validator": false
             },
-            "comment": "ERDDAP's /index.json returns a JSON object with a 'table' key listing all datasets. ERDDAP has no formal specification — it uses DAP (Data Access Protocol), a RESTful protocol, as its underlying model. The ERDDAP server software is documented at https://github.com/ERDDAP/erddap and https://coastwatch.pfeg.noaa.gov/erddap/index.html."
+            "comment": "ERDDAP's .json endpoints (including /index.json) always return the ERDDAP table envelope: {\"table\":{\"columnNames\":[...],\"columnTypes\":[...],\"rows\":[...]}}. The body signature is a regex requiring \"table\" immediately followed by \"columnNames\" and \"columnTypes\" — far more specific than a bare \"table\" substring, which matched any JSON containing that word. ERDDAP has no formal specification — it uses DAP (Data Access Protocol), a RESTful protocol, as its underlying model. The ERDDAP server software is documented at https://github.com/ERDDAP/erddap and https://coastwatch.pfeg.noaa.gov/erddap/index.html."
         },
         "SPARQL": {
             "title": "SPARQL Query Language",
@@ -1376,7 +1376,11 @@
                     {"pattern": "query_status", "mode": "substring"}
                 ],
                 "distinctive_element": "<VOTABLE",
-                "distinctive_namespace": null,
+                "distinctive_namespace": [
+                    "http://www.ivoa.net/xml/VOTable/v1.1",
+                    "http://www.ivoa.net/xml/VOTable/v1.2",
+                    "http://www.ivoa.net/xml/VOTable/v1.3"
+                ],
                 "require_body_and_ct": false
             },
             "special": {
@@ -1418,7 +1422,11 @@
                     {"pattern": "<resource type=\"results\"", "mode": "substring"}
                 ],
                 "distinctive_element": "<VOTABLE",
-                "distinctive_namespace": "http://www.ivoa.net/xml/VOTable/v1.3",
+                "distinctive_namespace": [
+                    "http://www.ivoa.net/xml/VOTable/v1.1",
+                    "http://www.ivoa.net/xml/VOTable/v1.2",
+                    "http://www.ivoa.net/xml/VOTable/v1.3"
+                ],
                 "require_body_and_ct": false
             },
             "special": {
@@ -1460,7 +1468,11 @@
                     {"pattern": "query_status", "mode": "substring"}
                 ],
                 "distinctive_element": "<VOTABLE",
-                "distinctive_namespace": "http://www.ivoa.net/xml/SSA/v1.1",
+                "distinctive_namespace": [
+                    "http://www.ivoa.net/xml/VOTable/v1.1",
+                    "http://www.ivoa.net/xml/VOTable/v1.2",
+                    "http://www.ivoa.net/xml/VOTable/v1.3"
+                ],
                 "require_body_and_ct": false
             },
             "special": {
@@ -1502,7 +1514,11 @@
                     {"pattern": "query_status", "mode": "substring"}
                 ],
                 "distinctive_element": "<VOTABLE",
-                "distinctive_namespace": "http://www.ivoa.net/xml/SimpleSpectrumLineDM/SimpleSpectrumLineDM-v1.0.xsd",
+                "distinctive_namespace": [
+                    "http://www.ivoa.net/xml/VOTable/v1.1",
+                    "http://www.ivoa.net/xml/VOTable/v1.2",
+                    "http://www.ivoa.net/xml/VOTable/v1.3"
+                ],
                 "require_body_and_ct": false
             },
             "special": {
