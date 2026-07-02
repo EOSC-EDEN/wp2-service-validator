@@ -9,7 +9,9 @@ load_dotenv()
 from core.validator import ServiceValidator
 from core.fuseki_loader import FusekiLoader
 from core.type_resolver import resolve_type
+from controllers._console import enable_utf8_console
 
+enable_utf8_console()  # before basicConfig, so the log StreamHandler uses UTF-8 stderr
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 

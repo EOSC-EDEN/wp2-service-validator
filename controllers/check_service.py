@@ -7,8 +7,10 @@ load_dotenv()
 
 from core.validator import ServiceValidator
 from core.type_resolver import resolve_type
+from controllers._console import enable_utf8_console
 
 def main():
+    enable_utf8_console()
     parser = argparse.ArgumentParser(description="Check a single service endpoint.")
     parser.add_argument("--url", help="The URL to validate")
     parser.add_argument("--type", required=False, help="The expected Service Type (Acronym) for strict validation (e.g., 'OAI-PMH'). If omitted, the identifier is queried automatically.")
