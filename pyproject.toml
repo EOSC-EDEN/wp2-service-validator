@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eden-service-validator"
+version = "0.1.0"
+description = "Validates and scores repository service endpoints (OAI-PMH, SWORD, OGC, ...) for EOSC-EDEN WP2"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "GPL-3.0-or-later"
+dependencies = [
+    "requests>=2.31,<3",
+]
+
+[project.urls]
+Repository = "https://github.com/EOSC-EDEN/wp2-service-validator"
+
+[tool.setuptools]
+packages = ["eden_validator"]
