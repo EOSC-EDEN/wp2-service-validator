@@ -10,7 +10,7 @@ from urllib.parse import urljoin, urlparse
 class ServiceValidator:
     logger = logging.getLogger('ServiceValidator')
 
-    def __init__(self, timeout: int = 10) -> None:
+    def __init__(self, timeout: int = 10, profiles_path: Optional[str] = None) -> None:
         self.timeout = timeout
         self.headers = {
             'User-Agent': 'EDEN-Endpoint-Validator/1.0',
@@ -18,9 +18,9 @@ class ServiceValidator:
         }
         self.api_doc_keywords = []
         self.decommissioned_keywords = []
-        self.protocol_configs = self._init_from_profiles()
+        self.protocol_configs = self._init_from_profiles(profiles_path)
 
-    def _init_from_profiles(self):
+    def _init_from_profiles(self, profiles_path: Optional[str] = None):
         """
         Initialiser — reads service_profiles.json and populates all derived state.
 
@@ -31,16 +31,24 @@ class ServiceValidator:
           - self.api_doc_keywords     : list of HTML keyword strings
           - self.decommissioned_keywords : list of HTML keyword strings
 
+        profiles_path resolution: explicit arg > EDEN_SERVICE_PROFILES env var > repo-relative config/service_profiles.json.
+
         Raises FileNotFoundError / ValueError on missing or corrupt configuration
         so the application fails fast at startup rather than silently misbehaving.
         """
-        profile_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'service_profiles.json')
+        profile_path = (
+            profiles_path
+            or os.getenv('EDEN_SERVICE_PROFILES')
+            or os.path.join(os.path.dirname(__file__), '..', 'config', 'service_profiles.json')
+        )
         try:
             with open(profile_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"service_profiles.json not found at {profile_path}. "
+                "Pass profiles_path=... to ServiceValidator, or set the "
+                "EDEN_SERVICE_PROFILES environment variable. "
                 "Cannot start the validator without a valid profile configuration."
             )
         except json.JSONDecodeError as e:

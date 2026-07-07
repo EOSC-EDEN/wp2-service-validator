@@ -20,7 +20,7 @@ It provides three modes of operation:
 
 ## Installation
 
-1.  **Prerequisites:** Python 3.8 or higher.
+1.  **Prerequisites:** Python 3.9 or higher.
 2.  **Install Dependencies:**
     ```bash
     pip install -r requirements.txt
@@ -31,10 +31,38 @@ It provides three modes of operation:
     # Edit .env with your Fuseki credentials and identifier URL
     ```
 
+### Using the validator as a library
+
+The validation core is pip-installable (package `eden_validator`, no FastAPI/service
+dependencies — just `requests`):
+
+```bash
+pip install "eden-service-validator @ git+https://github.com/EOSC-EDEN/wp2-service-validator.git@v0.1.0"
+```
+
+```python
+from pathlib import Path
+from eden_validator import ServiceValidator
+
+# Build an absolute path from your own code location — a relative profiles_path
+# resolves against the process CWD, which varies under Docker/systemd/cron.
+PROFILES = Path(__file__).resolve().parent / "data" / "service_profiles.json"
+validator = ServiceValidator(profiles_path=str(PROFILES))
+result = validator.validate_url(url, expected_type="OAI-PMH")
+```
+
+The package does not bundle `service_profiles.json` — pass your synced copy via
+`profiles_path`, or set the `EDEN_SERVICE_PROFILES` environment variable (the
+natural choice in Docker: set it in the Dockerfile/compose and call
+`ServiceValidator()` with no path logic in code). Note the GPL-3.0 license
+applies to consumers.
+
+Note: when running Python from a checkout of this repository, the local `eden_validator/` directory shadows any pip-installed copy — verify installed-package behavior from a different working directory.
+
 ## Project Structure
 
 The repository is organized by responsibility. Run all commands from the repository
-root so the `controllers` and `core` packages resolve on the import path.
+root so the `controllers` and `eden_validator` packages resolve on the import path.
 
 ```
 service-validator/
@@ -42,7 +70,7 @@ service-validator/
 │   ├── api.py            #   FastAPI web service (uvicorn controllers.api:app)
 │   ├── check_service.py  #   CLI: validate a single URL
 │   └── batch_validator.py#   CLI: batch-validate from Fuseki (or a CSV)
-├── core/                 # Validation engine and helpers
+├── eden_validator/       # Validation engine and helpers
 │   ├── validator.py      #   ServiceValidator — scoring, content checks, fallbacks
 │   ├── type_resolver.py  #   Infers service type via the wp2-service-identifier API
 │   └── fuseki_loader.py  #   Queries harmonized graphs from the Fuseki SPARQL store
@@ -51,14 +79,15 @@ service-validator/
 │   └── service_profiles.schema.json # JSON Schema for the profiles
 ├── data/                 # Input fixtures (e.g. legacy CSV for --input mode)
 ├── output/               # Generated results (gitignored)
+├── pyproject.toml        # Package metadata and distribution config
 ├── scripts/              # Dev/diagnostic one-offs (gitignored)
 └── tests/                # Local test suite (gitignored)
 ```
 
 | Layer | Holds | Notes |
 |-------|-------|-------|
-| `controllers/` | The API and two CLIs | Each is a thin entry point that wires together `core` components. |
-| `core/` | The reusable validation logic | No CLI/HTTP concerns; imported by every controller. |
+| `controllers/` | The API and two CLIs | Each is a thin entry point that wires together `eden_validator` components. |
+| `eden_validator/` | The reusable validation logic | No CLI/HTTP concerns; imported by every controller. |
 | `config/` | Rules and schema | `service_profiles.json` is synced from the source of truth — edit it there, not here. |
 | `data/` / `output/` | Inputs vs. generated artifacts | Batch results default to `output/`. |
 
@@ -71,7 +100,7 @@ Run the web server to expose a validation API.
 ```bash
 uvicorn controllers.api:app --reload
 ```
-*(Run from the repository root so the `core` and `controllers` packages resolve.)*
+*(Run from the repository root so the `eden_validator` and `controllers` packages resolve.)*
 *   The server will start at `http://127.0.0.1:8000`.
 *   **Interactive Docs:** Open `http://127.0.0.1:8000/docs` to test the API in your browser.
 *   **Example Request (type known):** `GET /validate?url=https://example.com/oai&service_type=OAI-PMH`
