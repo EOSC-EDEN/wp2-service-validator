@@ -5,8 +5,8 @@ import shlex
 from dotenv import load_dotenv
 load_dotenv()
 
-from core.validator import ServiceValidator
-from core.type_resolver import resolve_type
+from eden_validator.validator import ServiceValidator
+from eden_validator.type_resolver import resolve_type
 from controllers._console import enable_utf8_console
 
 def main():
