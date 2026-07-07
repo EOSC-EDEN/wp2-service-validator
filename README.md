@@ -20,7 +20,7 @@ It provides three modes of operation:
 
 ## Installation
 
-1.  **Prerequisites:** Python 3.8 or higher.
+1.  **Prerequisites:** Python 3.9 or higher.
 2.  **Install Dependencies:**
     ```bash
     pip install -r requirements.txt
@@ -36,7 +36,7 @@ It provides three modes of operation:
 The validation core is pip-installable (package `eden_validator`, no FastAPI/service
 dependencies — just `requests`):
 
-```
+```bash
 pip install "eden-service-validator @ git+https://github.com/EOSC-EDEN/wp2-service-validator.git@v0.1.0"
 ```
 
@@ -56,6 +56,8 @@ The package does not bundle `service_profiles.json` — pass your synced copy vi
 natural choice in Docker: set it in the Dockerfile/compose and call
 `ServiceValidator()` with no path logic in code). Note the GPL-3.0 license
 applies to consumers.
+
+Note: when running Python from a checkout of this repository, the local `eden_validator/` directory shadows any pip-installed copy — verify installed-package behavior from a different working directory.
 
 ## Project Structure
 
