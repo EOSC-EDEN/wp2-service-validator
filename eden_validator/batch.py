@@ -18,8 +18,13 @@ those rows go — CSV, Fuseki, or the caller — is the entry point's business.
 import logging
 
 from eden_validator.type_resolver import resolve_type
+from eden_validator.validator import ServiceValidator
+from eden_validator.fuseki_loader import FusekiLoader
+from eden_validator.fuseki_writer import FusekiWriter, derive_update_endpoint
 
 logger = logging.getLogger("BatchPipeline")
+
+DEFAULT_QUERY_ENDPOINT = "http://localhost:3030/service_registry_store/query"
 
 
 def validate_records(raw_records, validator, *, force_identifier=False,
@@ -161,3 +166,68 @@ def validate_records(raw_records, validator, *, force_identifier=False,
         results.append(output_row)
 
     return results, mismatches
+
+
+def run_batch(fuseki_endpoint=DEFAULT_QUERY_ENDPOINT, *, write_back=True,
+              fuseki_update_endpoint=None, run_id=None, profiles_path=None,
+              use_identifier=True):
+    """
+    One-call batch validation for library consumers — the harvester's
+    post-harvest Model B step. Loads service records from Fuseki, validates
+    them, and — BY DEFAULT — writes the results back into the Fuseki results
+    graph (eden://validator/results/). This is the write-back-by-default
+    counterpart to the CSV-by-default standalone CLI, which the pip package
+    does not ship.
+
+    Args:
+        fuseki_endpoint:        SPARQL query endpoint of the shared store.
+        write_back:             Replace the results graph with this run's
+                                results (default True; pass False to only
+                                get the result rows back).
+        fuseki_update_endpoint: SPARQL Update endpoint; default derived from
+                                fuseki_endpoint (…/query → …/update).
+        run_id:                 Optional harvest-run identifier stored for
+                                provenance (edenval:harvestRunId).
+        profiles_path:          Explicit service_profiles.json path (falls
+                                back to the EDEN_SERVICE_PROFILES env var,
+                                then the repo default).
+        use_identifier:         Allow the wp2-service-identifier fallback
+                                for records with no resolvable type.
+
+    Returns:
+        dict: {"validated": int, "written": int,
+               "unresolved_conforms_to": int, "results": list}
+
+    Raises:
+        requests.RequestException – Fuseki unreachable (load) or the
+            write-back rejected. Unlike the CLI, failures propagate: for
+            this entry point the write-back IS the primary output, so the
+            caller must see them.
+    """
+    validator = ServiceValidator(profiles_path=profiles_path)
+    loader = FusekiLoader(endpoint_url=fuseki_endpoint)
+    records = loader.query()
+    logger.info(f"Loaded {len(records)} service record(s) from {fuseki_endpoint}.")
+
+    results, mismatches = validate_records(
+        records, validator, use_identifier=use_identifier
+    )
+    if mismatches:
+        logger.info(
+            f"{len(mismatches)} conformsTo URL(s) could not be resolved to a profile."
+        )
+
+    written = 0
+    if write_back:
+        update_endpoint = (
+            fuseki_update_endpoint or derive_update_endpoint(fuseki_endpoint)
+        )
+        writer = FusekiWriter(update_endpoint=update_endpoint)
+        written = writer.write_results(results, run_id=run_id)
+
+    return {
+        "validated": len(results),
+        "written": written,
+        "unresolved_conforms_to": len(mismatches),
+        "results": results,
+    }
