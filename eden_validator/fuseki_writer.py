@@ -238,3 +238,39 @@ class FusekiWriter:
         username = os.environ.get("FUSEKI_USERNAME", "").strip()
         password = os.environ.get("FUSEKI_PASSWORD", "").strip()
         self._auth = (username, password) if username and password else None
+
+    def write_results(self, results: list, run_id: Optional[str] = None) -> int:
+        """
+        Replace the results graph with this run's validation results.
+
+        Returns the number of records written (each yields 1-2 DQV
+        measurement nodes). Returns 0 WITHOUT touching the store when no
+        row carries a usable service URI — never trade the last good
+        results for an empty graph.
+
+        Raises:
+            requests.RequestException – if the update endpoint cannot be
+                reached or rejects the request. The store is unchanged in
+                that case (DROP+INSERT travel in one transaction).
+        """
+        update, count = build_update(results, self.graph_uri, run_id=run_id)
+        if count == 0:
+            logger.warning(
+                "Write-back skipped: no result carried a usable service URI. "
+                "Existing results graph left untouched."
+            )
+            return 0
+
+        logger.info(
+            f"Writing {count} validation result(s) to graph <{self.graph_uri}> "
+            f"via {self.update_endpoint} ..."
+        )
+        response = requests.post(
+            self.update_endpoint,
+            data={"update": update},
+            auth=self._auth,
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        logger.info("Write-back committed.")
+        return count
