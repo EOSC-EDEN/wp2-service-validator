@@ -155,6 +155,7 @@ Validate all service endpoints queried directly from your Fuseki store.
 3.  **Outputs** (written to `output/`):
     *   `output/validation_results.csv`: Validation results including `score`, `resolution_method`, and `inferred_type` columns.
     *   `output/conformsTo_mismatches.csv`: A report of harvested `dct:conformsTo` URLs that could not be automatically resolved. Use this for manual review to update `service_profiles.json`.
+    *   *(with `--write-back`)* validation results as W3C DQV measurements in the Fuseki graph `eden://validator/results/` — schema in [`docs/fuseki-writeback-schema.md`](docs/fuseki-writeback-schema.md).
 
 #### Batch options
 
@@ -163,8 +164,28 @@ Validate all service endpoints queried directly from your Fuseki store.
 | *(none)* | Default: resolve via `conformsTo` → `serviceTitle` → identifier fallback |
 | `--no-identifier` | Disable identifier fallback; records with no resolvable type are recorded as errors |
 | `--force-identifier` | Skip `conformsTo` and `serviceTitle` resolution; use the identifier for every record (output saved to `output/validation_results_forced-identifier.csv`) |
+| `--write-back` | Write results back into Fuseki as W3C DQV RDF, replacing graph `eden://validator/results/` (see `docs/fuseki-writeback-schema.md`). Fuseki mode only |
+| `--fuseki-update` | SPARQL Update endpoint for `--write-back` (default: derived from `--fuseki`, `/query` → `/update`) |
+| `--run-id` | Optional harvest-run identifier stored with written results for provenance |
 
 > **Note on `--force-identifier`:** This mode is useful for evaluating the identifier's accuracy — compare its `mapped_service_type` output against known `conforms_to` values. Because the identifier and validator share overlapping signals (body signatures, content-type), the validation score in this mode is not an independent conformance check.
+
+### Batch validation from Python (harvester integration)
+
+The pip package ships the batch pipeline as a library call — this is the
+harvester's post-harvest Model B step. **Write-back is the default here**
+(no CSVs are written); the standalone CLI above defaults to CSV instead:
+
+```python
+from eden_validator.batch import run_batch
+
+summary = run_batch(run_id="harvest-2026-07-08")
+print(f"{summary['validated']} validated, {summary['written']} written to Fuseki")
+```
+
+Pass `write_back=False` to only get the result rows back, and
+`profiles_path=…` (or the `EDEN_SERVICE_PROFILES` env var) to point at your
+synced profiles copy.
 
 **(Legacy CSV Mode):** If you still want to validate from a CSV file instead of Fuseki:
 ```bash
