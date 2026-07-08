@@ -8,7 +8,7 @@ load_dotenv()
 
 from eden_validator.validator import ServiceValidator
 from eden_validator.fuseki_loader import FusekiLoader
-from eden_validator.type_resolver import resolve_type
+from eden_validator.batch import validate_records
 from controllers._console import enable_utf8_console
 
 enable_utf8_console()  # before basicConfig, so the log StreamHandler uses UTF-8 stderr
@@ -113,120 +113,11 @@ def run_batch_validation():
     logging.info(f"Loaded {len(raw_records)} service record(s) to validate.")
     logging.info(f"Loaded {len(available_types)} service type definition(s).")
 
-    results = []
-    mismatches = []  # conformsTo URLs that couldn't be resolved
-
-    for i, record in enumerate(raw_records):
-        endpoint_url = record.get('endpoint_url', '').strip()
-        conforms_to = record.get('conforms_to')
-        service_title = record.get('service_title')
-        repo_title = record.get('repo_title')
-        original_row = record.get('_original_row', {})
-
-        if not endpoint_url:
-            logging.warning(f"Record {i + 1}: No endpoint URL. Skipping.")
-            continue
-
-        # ------------------------------------------------------------------
-        # Type resolution: conformsTo → serviceTitle → identifier (fallback)
-        # ------------------------------------------------------------------
-        expected_type = None
-        resolution_method = 'none'
-        type_inferred = False
-
-        if not args.force_identifier and conforms_to:
-            expected_type = ServiceValidator.resolve_type_from_conforms_to(
-                conforms_to, validator.spec_url_index
-            )
-            if expected_type:
-                resolution_method = 'conforms_to'
-            else:
-                # Record for mismatch report.
-                # Also try a title-based match to find the closest candidate profile,
-                # so the CSV shows the harvested conformsTo URL side-by-side with
-                # what that profile's spec_urls actually look like — making manual
-                # review much easier.
-                candidate_type = (
-                    ServiceValidator.map_service_type(service_title, available_types)
-                    if service_title else None
-                )
-                candidate_spec_urls = ''
-                if candidate_type:
-                    cprofile = validator.protocol_configs.get(candidate_type, {})
-                    candidate_spec_urls = ' | '.join(
-                        e.get('url', '') for e in cprofile.get('spec_urls', []) if e.get('url')
-                    )
-                mismatches.append({
-                    'conformsTo_url': conforms_to,
-                    'service_title': service_title or '',
-                    'endpoint_url': endpoint_url,
-                    'repo_title': repo_title or '',
-                    'candidate_profile_type': candidate_type or '',
-                    'profile_spec_urls': candidate_spec_urls,
-                })
-
-        if not args.force_identifier and not expected_type and service_title:
-            expected_type = ServiceValidator.map_service_type(service_title, available_types)
-            if expected_type:
-                resolution_method = 'service_title'
-
-        # Third fallback (or first when --force-identifier): wp2-service-identifier
-        if not expected_type and not args.no_identifier:
-            try:
-                inferred, type_inferred = resolve_type(endpoint_url, mode='batch')
-                if inferred:
-                    expected_type = inferred
-                    resolution_method = 'identifier'
-                    logging.info(
-                        f"[{i + 1}/{len(raw_records)}] Type inferred by identifier: "
-                        f"'{expected_type}' for {endpoint_url}"
-                    )
-            except RuntimeError as e:
-                logging.warning(
-                    f"[{i + 1}/{len(raw_records)}] Identifier unavailable for "
-                    f"'{endpoint_url}': {e}"
-                )
-
-        if not expected_type:
-            logging.warning(
-                f"[{i + 1}/{len(raw_records)}] Could not resolve type for "
-                f"'{service_title}' / conformsTo='{conforms_to}' — will record as error."
-            )
-        else:
-            logging.info(
-                f"[{i + 1}/{len(raw_records)}] Validating: {endpoint_url} "
-                f"(type: {expected_type}, via: {resolution_method})"
-            )
-
-        # ------------------------------------------------------------------
-        # Run validation — pass conforms_to and service_title for scoring
-        # ------------------------------------------------------------------
-        result = validator.validate_url(
-            endpoint_url,
-            expected_type=expected_type,
-            conforms_to=conforms_to,
-            service_title=service_title,
-        )
-
-        # Build output row: start with original metadata, overlay validation result
-        output_row = {
-            'repoTitle': repo_title or '',
-            'serviceTitle': service_title or '',
-            'endpoint': endpoint_url,
-            'conforms_to': conforms_to or '',
-            'extracted_conforms_to': result.get('extracted_conforms_to', ''),
-            'conforms_to_verified': result.get('conforms_to_verified', ''),
-            'mapped_service_type': expected_type or 'N/A',
-            'resolution_method': resolution_method,
-            'inferred_type': type_inferred,
-        }
-        # Add any extra fields from the original row (CSV mode passthrough)
-        for k, v in original_row.items():
-            if k not in output_row:
-                output_row[k] = v
-        # Overlay the validation result (overwrites nothing already keyed above)
-        output_row.update(result)
-        results.append(output_row)
+    results, mismatches = validate_records(
+        raw_records, validator,
+        force_identifier=args.force_identifier,
+        use_identifier=not args.no_identifier,
+    )
 
     # ------------------------------------------------------------------
     # Write mismatch report
