@@ -35,7 +35,7 @@ PREFIX dcat: <http://www.w3.org/ns/dcat#>
 PREFIX dct:  <http://purl.org/dc/terms/>
 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
 
-SELECT DISTINCT ?endpointURL ?conformsTo ?serviceTitle ?repoTitle
+SELECT DISTINCT ?service ?endpointURL ?conformsTo ?serviceTitle ?repoTitle
 WHERE {
   GRAPH ?g {
     ?service rdf:type dcat:DataService ;
@@ -84,6 +84,7 @@ class FusekiLoader:
 
         Returns:
             List of dicts with keys:
+                service_uri   (str|None)  – URI of the dcat:DataService node (for write-back)
                 endpoint_url  (str)       – the URL to validate
                 conforms_to   (str|None)  – dct:conformsTo value if present
                 service_title (str|None)  – dct:title of the service if present
@@ -126,6 +127,9 @@ class FusekiLoader:
                 logger.debug("Skipping binding with empty endpointURL.")
                 continue
 
+            service_uri = (
+                binding.get("service", {}).get("value", "").strip() or None
+            )
             conforms_to = (
                 binding.get("conformsTo", {}).get("value", "").strip() or None
             )
@@ -136,10 +140,12 @@ class FusekiLoader:
                 binding.get("repoTitle", {}).get("value", "").strip() or None
             )
 
-            # De-duplicate on (endpoint_url, conforms_to): SELECT DISTINCT in SPARQL
+            # De-duplicate on (service_uri, endpoint_url, conforms_to): SELECT DISTINCT
             # handles this against a live Fuseki, but mocked / replayed responses may
-            # return duplicate bindings that we must filter here too.
-            dedup_key = (endpoint_url, conforms_to)
+            # return duplicate bindings that we must filter here too. The service URI is
+            # part of the key: the same endpoint under two distinct service nodes must
+            # yield two records, so write-back can annotate each node.
+            dedup_key = (service_uri, endpoint_url, conforms_to)
             if dedup_key in seen:
                 logger.debug(
                     "Skipping duplicate binding: endpoint=%s conforms_to=%s",
@@ -150,6 +156,7 @@ class FusekiLoader:
 
             records.append(
                 {
+                    "service_uri": service_uri,
                     "endpoint_url": endpoint_url,
                     "conforms_to": conforms_to,
                     "service_title": service_title,
