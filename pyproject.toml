@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eden-service-validator"
-version = "0.1.0"
+version = "0.2.0rc1"
 description = "Validates and scores repository service endpoints (OAI-PMH, SWORD, OGC, ...) for EOSC-EDEN WP2"
 readme = "README.md"
 requires-python = ">=3.9"
