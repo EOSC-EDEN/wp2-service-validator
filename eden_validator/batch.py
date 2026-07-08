@@ -7,7 +7,7 @@ Batch-validation pipeline, shared by the two entry points:
   CSV outputs by default, Fuseki write-back opt-in (--write-back).
 - run_batch() (library API, ships in the pip package): the harvester's
   post-harvest call. Fuseki write-back by default, no CSV — the caller
-  gets the result rows back. (Added in a later task.)
+  gets the result rows back.
 
 validate_records() takes loaded records, resolves each record's service
 type (conformsTo → serviceTitle → wp2-service-identifier), validates the
