@@ -3,11 +3,14 @@ import csv
 import logging
 import os
 
+import requests
+
 from dotenv import load_dotenv
 load_dotenv()
 
 from eden_validator.validator import ServiceValidator
 from eden_validator.fuseki_loader import FusekiLoader
+from eden_validator.fuseki_writer import FusekiWriter, derive_update_endpoint
 from eden_validator.batch import validate_records
 from controllers._console import enable_utf8_console
 
@@ -25,6 +28,7 @@ def _load_from_csv(input_csv: str):
         reader = csv.DictReader(infile, delimiter=delimiter)
         for row in reader:
             rows.append({
+                'service_uri': None,
                 'endpoint_url': row.get('endpoint', '').strip(),
                 'conforms_to': None,
                 'service_title': row.get('serviceTitle', '').strip() or None,
@@ -78,7 +82,26 @@ def run_batch_validation():
         help='Skip conformsTo and serviceTitle resolution; use the wp2-service-identifier '
              'for every record. Useful for evaluating identifier accuracy against Fuseki data.'
     )
+    parser.add_argument(
+        '--write-back', action='store_true',
+        help='Write validation results back into Fuseki as DQV RDF '
+             '(replaces graph eden://validator/results/). Fuseki mode only.'
+    )
+    parser.add_argument(
+        '--fuseki-update', default=None,
+        help='SPARQL Update endpoint for --write-back. '
+             'Default: derived from --fuseki by replacing /query with /update.'
+    )
+    parser.add_argument(
+        '--run-id', default=None,
+        help='Optional harvest-run identifier stored with written results '
+             'for provenance (edenval:harvestRunId).'
+    )
     args = parser.parse_args()
+
+    if args.write_back and args.input:
+        parser.error('--write-back requires Fuseki mode and cannot be combined '
+                     'with --input (CSV rows carry no service node URI).')
 
     if args.force_identifier:
         base, ext = os.path.splitext(args.output)
@@ -133,6 +156,7 @@ def run_batch_validation():
 
     ordered_fieldnames = [
         'repoTitle',
+        'serviceUri',
         'serviceTitle',
         'endpoint',
         'conforms_to',
@@ -174,6 +198,24 @@ def run_batch_validation():
         logging.info(f"Validation complete. Results saved to '{args.output}'.")
     except IOError as e:
         logging.error(f"Failed to write results to '{args.output}': {e}")
+
+    # ------------------------------------------------------------------
+    # Optional write-back into Fuseki (CSV outputs above stay the source
+    # of truth; a write-back failure must not fail the batch run)
+    # ------------------------------------------------------------------
+    if args.write_back:
+        update_endpoint = args.fuseki_update or derive_update_endpoint(args.fuseki)
+        writer_client = FusekiWriter(update_endpoint=update_endpoint)
+        try:
+            written = writer_client.write_results(results, run_id=args.run_id)
+            logging.info(
+                f"Write-back: {written} result(s) written to "
+                f"graph <{writer_client.graph_uri}> at {update_endpoint}."
+            )
+        except requests.RequestException as e:
+            logging.error(
+                f"Write-back to Fuseki failed — CSV outputs are unaffected: {e}"
+            )
 
 
 if __name__ == "__main__":
