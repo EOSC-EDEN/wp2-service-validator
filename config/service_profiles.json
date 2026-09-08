@@ -407,6 +407,22 @@
                 {
                     "url": "http://swordapp.org/",
                     "role": "doc"
+                },
+                {
+                    "url": "https://swordapp.org/",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://sword.cottagelabs.com/",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://swordapp.github.io/SWORDv2-Profile/SWORDProfile.html",
+                    "role": "doc"
+                },
+                {
+                    "url": "https://swordapp.github.io/swordv3/swordv3.html",
+                    "role": "doc"
                 }
             ],
             "probe": {
