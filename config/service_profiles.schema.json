@@ -305,6 +305,13 @@
                         null,
                         "<request><metadata/></request>"
                     ]
+                },
+                "template_value": {
+                    "type": "string",
+                    "description": "Optional. For endpoints that are URL templates (schema.org SearchAction urlTemplate), every {name} placeholder, raw or percent-encoded as %7Bname%7D, is replaced with this value before probing, so the probe runs a real query. Omit for profiles whose endpoints are plain URLs.",
+                    "examples": [
+                        "water"
+                    ]
                 }
             }
         },
@@ -468,6 +475,15 @@
                 "unsupported": {
                     "type": "boolean",
                     "description": "If true, this service type cannot be validated over HTTP (e.g. it is a file format rather than a live network protocol). The validator short-circuits in validate() and returns an 'Unsupported/Cannot be verified' result without probing the endpoint. Read by Validator at runtime (see core/validator.py). Currently set only on the NetCDF profile.",
+                    "default": false,
+                    "examples": [
+                        false,
+                        true
+                    ]
+                },
+                "skip_html_keyword_checks": {
+                    "type": "boolean",
+                    "description": "If true, the global api_doc_keywords and decommissioned_keywords are not checked on this type's HTML responses. For service types whose response is a page of arbitrary content (search results), where a hit on 'getting started' or 'not available' says nothing about the endpoint. Currently set only on the SearchAction profile.",
                     "default": false,
                     "examples": [
                         false,

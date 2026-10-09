@@ -1708,6 +1708,46 @@
                 "use_ftp_validator": true
             },
             "comment": "Real ftp:// URLs are validated via ftplib, not HTTP requests (use_ftp_validator: true). HTTP URLs that return an FTP-style directory listing (Apache mod_autoindex, etc.) are flagged as invalid (detect_http_wrapped_ftp: true). Status codes for FTP are synthesised HTTP-like values: 200 = successful connection + directory listing, 550 = path not found or connection error."
+        },
+        "SearchAction": {
+            "title": "schema.org SearchAction (site search URL template)",
+            "fairsharing_doi": null,
+            "cpp": null,
+            "spec_urls": [
+                {
+                    "url": "https://schema.org/SearchAction",
+                    "role": "doc"
+                }
+            ],
+            "probe": {
+                "suffix": "",
+                "method": "GET",
+                "accept": "text/html",
+                "expected_status_codes": [
+                    200
+                ],
+                "result_format": "HTML",
+                "template_value": "water"
+            },
+            "validation": {
+                "body_signatures": [
+                    {
+                        "pattern": "water",
+                        "mode": "substring"
+                    }
+                ],
+                "distinctive_element": null,
+                "distinctive_namespace": null,
+                "require_body_and_ct": false
+            },
+            "special": {
+                "accept_405_as_valid": false,
+                "ldn_inbox_discovery": false,
+                "detect_http_wrapped_ftp": false,
+                "use_ftp_validator": false,
+                "skip_html_keyword_checks": true
+            },
+            "comment": "The endpoint is the SearchAction target urlTemplate, e.g. https://pangaea.de/?q={search_term_string}. The validator fills the placeholder with probe.template_value and runs a real search. The body signature must equal template_value: it checks that the term comes back in the page (title, search box, result list), the only marker shared across the sites tested. 'water' was picked because it returns results on Reactome and WDCC, while a nonsense term gets a 404 from Reactome, and because it appeared in none of the 13 tested sites' page chrome. A text/html 200 alone counts as valid; the echo only adds score. Client-side rendered search pages (STRING, SWISSUbase, Morpheus, PANGAEA's result list) never show the term to a non-JS probe, so they top out without the echo points. HTML keyword checks are skipped because result pages show arbitrary repository content."
         }
     }
 }
