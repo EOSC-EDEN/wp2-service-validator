@@ -5,7 +5,17 @@ import logging
 import json
 import ftplib
 from typing import Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
+
+# {search_term_string} or its percent-encoded form, as found in schema.org SearchAction targets.
+# ponytail: plain {name} only; RFC 6570 operators like {?q} are not filled.
+_URL_PLACEHOLDER = re.compile(r'(?:\{|%7B)\w+(?:\}|%7D)', re.IGNORECASE)
+
+
+def _has_keyword(text_lower, keywords):
+    # Alphanumeric boundaries: 'curl' must not fire inside a base64 image, nor 'raml' inside 'paramlist'.
+    return any(re.search(r'(?<![a-z0-9])' + re.escape(k) + r'(?![a-z0-9])', text_lower) for k in keywords)
+
 
 class ServiceValidator:
     logger = logging.getLogger('ServiceValidator')
@@ -225,7 +235,7 @@ class ServiceValidator:
         response_text_lower = response.text[:50000].lower()
 
         # 1. Check for decommissioned/migrated service keywords
-        if any(keyword in response_text_lower for keyword in self.decommissioned_keywords):
+        if _has_keyword(response_text_lower, self.decommissioned_keywords):
             self.logger.warning(f"Detected decommissioned service page at {url}.")
             return {
                 "valid": False, "is_doc_page": False,
@@ -234,7 +244,7 @@ class ServiceValidator:
             }
 
         # 2. Check for API documentation page (always checked; doc pages are never valid service endpoints)
-        if any(keyword in response_text_lower for keyword in self.api_doc_keywords):
+        if _has_keyword(response_text_lower, self.api_doc_keywords):
             self.logger.info(f"Detected API documentation page on {url}. Marking as INVALID (Documentation Page).")
 
             # Construct a helpful note based on expectations
@@ -690,6 +700,11 @@ class ServiceValidator:
         # From here: http/https URL with a known, supported profile.
         config = self.protocol_configs[expected_type]
 
+        # URL templates (schema.org SearchAction) get a real query so the probe exercises the search.
+        template_value = config.get('probe', {}).get('template_value')
+        if template_value:
+            url = _URL_PLACEHOLDER.sub(quote(template_value, safe=''), url)
+
         conforms_to_matched = (
             conforms_to is not None
             and self.resolve_type_from_conforms_to(conforms_to, self.spec_url_index) == expected_type
@@ -821,8 +836,11 @@ class ServiceValidator:
         # for in body signatures, causing false positives if we check body patterns first.
         # By classifying HTML pages here first, we ensure that any page that looks like a doc or
         # decommissioned notice is rejected immediately, before the body signature check can fire.
-        initial_html_classification = self._classify_html_response(
-            main_response, final_url, expected_mime=config.get('probe', {}).get('accept', '')
+        # Search result pages show arbitrary repository content, so keyword hits there mean nothing.
+        initial_html_classification = None if config.get('special', {}).get('skip_html_keyword_checks') else (
+            self._classify_html_response(
+                main_response, final_url, expected_mime=config.get('probe', {}).get('accept', '')
+            )
         )
         if initial_html_classification:
             self.logger.info(
@@ -1161,7 +1179,9 @@ class ServiceValidator:
 
         # --- HTML Based Fallbacks (Decommissioned / Doc Page) for the Constructed/Final URL ---
         is_doc_page = False
-        html_classification = self._classify_html_response(response, constructed_url, expected_mime)
+        html_classification = None if config.get('special', {}).get('skip_html_keyword_checks') else (
+            self._classify_html_response(response, constructed_url, expected_mime)
+        )
         
         if html_classification:
             is_valid = html_classification.get('valid', False)
