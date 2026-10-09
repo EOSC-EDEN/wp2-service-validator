@@ -37,7 +37,7 @@ The validation core is pip-installable (package `eden_validator`, no FastAPI/ser
 dependencies — just `requests`):
 
 ```bash
-pip install "eden-service-validator @ git+https://github.com/EOSC-EDEN/wp2-service-validator.git@v0.1.0"
+pip install "eden-service-validator @ git+https://github.com/EOSC-EDEN/wp2-service-validator.git@v0.1.1"
 ```
 
 ```python
