@@ -218,65 +218,8 @@ See `.env.example` for the full list. Key variables:
 | `IDENTIFIER_CONFIDENCE_THRESHOLD` | `5.0` | Minimum confidence (0–10) to auto-proceed in CLI mode without prompting |
 | `EDEN_ALLOW_PRIVATE_TARGETS` | *(unset)* | `true` lets the demo page and `/validate` check private/loopback hosts. For local development only; leave unset on the EU node |
 
-## Deploying the demo on the EU node
+## Deploying the demo
 
-The demo runs next to the harvester on its VM, behind the EDEN entry VM. The
-jump host, SSH and the entry VM are described in the harvester's
-[`docs/deploy-eu-node.md`](https://github.com/EOSC-EDEN/wp2-repo-harvester/blob/master/docs/deploy-eu-node.md);
-these are the validator-specific steps.
-
-| Item       | Value                              |
-| ---------- | ---------------------------------- |
-| VM         | `harvester`, `192.168.0.81`        |
-| Port       | 8002 (the harvester has 8000)      |
-| Hostname   | `eden-validator.vm.fedcloud.eu`    |
-| Code       | `/opt/eden-validator`              |
-
-1. **Security group.** In Horizon, add a rule to `eden-service`: ingress TCP 8002
-   from the `eden-entry` group. Without it the entry VM gets a timeout.
-2. **Install**, as root on the harvester VM:
-
-       adduser --system --group --no-create-home --shell /usr/sbin/nologin validator
-       git clone https://github.com/EOSC-EDEN/wp2-service-validator.git /opt/eden-validator
-       cd /opt/eden-validator
-       python3 -m venv venv
-       venv/bin/pip install -r requirements.txt
-       chown -R validator:validator /opt/eden-validator
-
-       cp deploy/eden-validator.env.example /etc/eden-validator.env
-       chown root:validator /etc/eden-validator.env
-       chmod 0640 /etc/eden-validator.env
-
-   Set `UVICORN_HOST` in `/etc/eden-validator.env` to `192.168.0.81`, then:
-
-       cp deploy/eden-validator.service /etc/systemd/system/
-       systemctl daemon-reload
-       systemctl enable --now eden-validator
-       curl -fsS http://192.168.0.81:8002/healthz
-
-3. **Hostname.** Register `eden-validator.vm.fedcloud.eu` at <https://nsupdate.fedcloud.eu/>
-   and point it at the entry VM. Always pass `myip`:
-
-       curl "https://eden-validator.vm.fedcloud.eu:<secret>@nsupdate.fedcloud.eu/nic/update?myip=62.3.175.206"
-       nslookup eden-validator.vm.fedcloud.eu      # 62.3.175.206
-
-4. **Publish**, on `eden-entry`: install `deploy/eden-validator.nginx.conf` as
-   `/etc/nginx/sites-available/validator`, link it into `sites-enabled`, run
-   `nginx -t` and reload. nginx is shared with every EDEN service: if `nginx -t`
-   fails, remove the `sites-enabled/validator` link at once. Run certbot only after
-   `nslookup` answers `62.3.175.206`; failed attempts count against the shared
-   `vm.fedcloud.eu` Let's Encrypt limit.
-5. **Check:**
-
-       curl -I http://eden-validator.vm.fedcloud.eu/         # 301 to https
-       curl -fsS https://eden-validator.vm.fedcloud.eu/healthz
-       journalctl -u eden-validator -n 50 --no-pager          # on the harvester VM
-
-**Updating:**
-
-    sudo -u validator git -C /opt/eden-validator pull --ff-only
-    sudo /opt/eden-validator/venv/bin/pip install -r /opt/eden-validator/requirements.txt
-    sudo systemctl restart eden-validator
-
-A change to `deploy/eden-validator.nginx.conf` is installed on `eden-entry` again by
-hand; certbot edits the installed copy, so rerun it afterwards.
+`deploy/` holds the systemd unit, an environment example and the nginx site file the
+demo runs with on the EDEN EU node. The step-by-step runbook describes our specific VMs,
+not the software, so it is kept out of this public repository.

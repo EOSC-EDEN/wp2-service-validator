@@ -16,6 +16,8 @@ import os
 import socket
 from urllib.parse import urlparse
 
+import requests
+
 logger = logging.getLogger('TargetGuard')
 
 # Same switch and values as the harvester's HarvestSession, for local
@@ -35,10 +37,13 @@ def _private_targets_allowed():
 
 def check_target(url: str) -> None:
     try:
-        parsed = urlparse(url)
+        # Parse the URL requests will send, not the raw input: urlparse and
+        # urllib3 disagree on a backslash in the authority, and only urllib3's
+        # reading decides where the connection goes.
+        parsed = urlparse(requests.Request('GET', url).prepare().url)
         host = parsed.hostname
         port = parsed.port
-    except ValueError:
+    except (requests.RequestException, ValueError):
         parsed, host, port = None, None, None
     if parsed is None or parsed.scheme.lower() not in ('http', 'https') or not host:
         logger.warning("Refused %s: not an http(s) URL with a host", url)
@@ -53,6 +58,11 @@ def check_target(url: str) -> None:
         # Nothing to protect: the validator cannot reach it either, and its own
         # connection error is the more useful thing to show.
         return
+    except UnicodeError:
+        # An empty or over-long label (example..org); the idna codec rejects it
+        # before any lookup, and the validator would only crash on it later.
+        logger.warning("Refused %s: invalid host name", url)
+        raise BlockedTargetError("That URL's host name is not valid.")
 
     for info in infos:
         # Link-local IPv6 can carry a %scope suffix that ip_address rejects.
