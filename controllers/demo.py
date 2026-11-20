@@ -1,5 +1,19 @@
 """The public demo page: one endpoint, one service type, the full validator result."""
 import json
+import logging
+from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, Request
+from fastapi.responses import PlainTextResponse
+from fastapi.templating import Jinja2Templates
+
+from controllers.guard import BlockedTargetError, check_target
+
+logger = logging.getLogger('DemoPage')
+
+templates = Jinja2Templates(directory=Path(__file__).parent / 'templates')
+router = APIRouter()
 
 # Ordered by how often each type turned up in the 2026-10-22 harvest of 146
 # repositories (437 services). Every other profile goes below these, A-Z.
@@ -62,3 +76,57 @@ def result_rows(result: dict) -> list[tuple[str, str]]:
         for k in keys
         if result[k] is not None and result[k] not in ("", [], {})
     ]
+
+
+@router.get('/', include_in_schema=False)
+def page(request: Request, url: Optional[str] = None, service_type: str = '', conforms_to: str = ''):
+    validator = request.app.state.validator
+    common, other = type_options(validator.protocol_configs)
+    context = {
+        'url': (url or '').strip(), 'service_type': service_type.strip(),
+        'conforms_to': conforms_to.strip(), 'common': common, 'other': other,
+        'message': None, 'result': None,
+    }
+
+    def render(status=200, **extra):
+        return templates.TemplateResponse(request, 'demo.html', {**context, **extra}, status_code=status)
+
+    if url is None:
+        return render()
+    if not context['url']:
+        return render(400, message='Please enter an endpoint URL.')
+    if context['service_type'] not in validator.protocol_configs:
+        return render(400, message='Please choose a service type. '
+                                   'The validator needs one to know what to compare against.')
+    try:
+        check_target(context['url'])
+    except BlockedTargetError as e:
+        return render(400, message=str(e))
+
+    try:
+        result = validator.validate_url(
+            context['url'],
+            expected_type=context['service_type'],
+            conforms_to=context['conforms_to'] or None,
+            service_title=context['service_type'],
+        )
+        rows = result_rows(result)
+        result_json = json.dumps(result, indent=2)
+    except Exception:
+        # Public page: an exception message can carry paths or hostnames, so the
+        # detail goes to the log and the visitor gets a generic notice.
+        logger.error('Validation failed for %s', context['url'], exc_info=True)
+        return render(500, message='That check could not be completed. This is not something '
+                                   'you did wrong. Please try again in a moment.')
+    return render(result=result, rows=rows, result_json=result_json)
+
+
+@router.get('/healthz', include_in_schema=False)
+def healthz():
+    # Liveness only: it is polled, so it must never validate anything.
+    return {'status': 'ok'}
+
+
+@router.get('/robots.txt', include_in_schema=False, response_class=PlainTextResponse)
+def robots():
+    return 'User-agent: *\nDisallow: /\n'

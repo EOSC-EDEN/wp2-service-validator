@@ -1,7 +1,11 @@
+from pathlib import Path
+
 from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
+from controllers import demo
 from controllers.guard import BlockedTargetError, check_target
 from eden_validator.validator import ServiceValidator
 from eden_validator.type_resolver import resolve_type
@@ -15,6 +19,11 @@ app = FastAPI(
 
 # Initialize the validator once when the application starts
 validator = ServiceValidator()
+
+# The demo page reads the validator from app.state, so it shares this instance.
+app.state.validator = validator
+app.include_router(demo.router)
+app.mount('/static', StaticFiles(directory=Path(__file__).parent / 'static'), name='static')
 
 @app.get("/validate", summary="Validate a single service endpoint")
 def validate_endpoint(

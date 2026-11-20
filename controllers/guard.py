@@ -62,5 +62,5 @@ def check_target(url: str) -> None:
             # internal name resolves to would leak the network layout.
             logger.warning("Refused %s: %s resolves to %s", url, host, address)
             raise BlockedTargetError(
-                "That host is not on the public internet, so this demo will not check it."
+                "That host is not on the public internet, so it is not checked here."
             )

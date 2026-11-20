@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- A result is a GET with the URL in the query string: a crawled or unfurled
+     link would fire a real probe from this server. /robots.txt covers crawlers
+     that check it first. -->
+<meta name="robots" content="noindex,nofollow">
+<title>EDEN Service Validator</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<style>
+  /* Taken from the harvester demo so the two pages look like one project. */
+  :root { --ink: #1c1c1c; --muted: #5c5c5c; --line: #d8d8d8;
+          --ok: #1a6b2f; --warn: #8a1a1a; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         line-height: 1.5; color: var(--ink); background: #fff; margin: 0;
+         padding: 1.5rem clamp(1rem, 5vw, 4rem); }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .5rem;
+       border-bottom: 1px solid var(--line); padding-bottom: .25rem; }
+  .banner { background: #fff8e1; border: 1px solid #e6c86a; border-radius: 4px;
+            padding: .6rem .8rem; font-size: .9rem; margin: .75rem 0 1.5rem;
+            max-width: 60rem; }
+  form { display: grid; gap: .75rem; margin-bottom: 1rem; max-width: 60rem; }
+  label { display: grid; gap: .2rem; font-size: .9rem; color: var(--muted); }
+  input[type=url], select { padding: .5rem; border: 1px solid var(--line);
+            border-radius: 4px; font-size: 1rem; background: #fff; color: var(--ink);
+            min-width: 0; }
+  button { justify-self: start; padding: .5rem 1.2rem; font-size: 1rem; cursor: pointer;
+           border: 1px solid var(--ink); background: var(--ink); color: #fff;
+           border-radius: 4px; }
+  table { border-collapse: collapse; max-width: 100%; font-size: .95rem; }
+  th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--line);
+           vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); }
+  td { overflow-wrap: anywhere; }
+  .valid-yes { color: var(--ok); font-weight: 600; }
+  .valid-no { color: var(--warn); font-weight: 600; }
+  .note { color: var(--muted); font-size: .9rem; max-width: 60rem; }
+  .error { border-left: 3px solid var(--warn); padding-left: .8rem; max-width: 60rem; }
+  pre { background: #f6f6f6; padding: .8rem; border-radius: 4px; margin: 0;
+        overflow: auto; font-size: .85rem; max-height: 32rem; }
+  details { margin: 0 0 .75rem; }
+  summary { cursor: pointer; color: var(--muted); font-size: .9rem; margin-bottom: .5rem; }
+  .split { display: grid; grid-template-columns: 1fr; gap: 1.5rem;
+           align-items: start; margin: 1rem 0; }
+  .split > div { min-width: 0; }
+  @media (min-width: 48rem) { .split { grid-template-columns: 1fr 1fr; } }
+  .table-scroll { overflow-x: auto; }
+  .logo { height: 3rem; width: auto; display: block; margin-bottom: .75rem; }
+  footer { margin-top: 3rem; padding-top: .75rem; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: .9rem; }
+  code { font-size: .9em; word-break: break-all; }
+</style>
+</head>
+<body>
+<header>
+  <img class="logo" src="/static/logo-eden.svg" alt="EOSC EDEN">
+  <h1>EDEN Service Validator</h1>
+  <p class="note">Check one service endpoint against the profile for its type, and see everything the validator reports.</p>
+  <p class="banner">Experimental preview. No availability guarantee, no authentication, nothing is stored.</p>
+</header>
+<main>
+<form method="get" action="/">
+  <label>Endpoint URL
+    <input type="url" name="url" required placeholder="https://data.example.org/oai"
+           value="{{ url }}">
+  </label>
+  <label>Service type
+    <select name="service_type" required>
+      <option value="" disabled{% if not service_type %} selected{% endif %}>Choose a type</option>
+      {% for group, options in [("Common", common), ("Other", other)] %}
+      <optgroup label="{{ group }}">
+        {% for key, label in options %}
+        <option value="{{ key }}"{% if key == service_type %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Conforms to (optional)
+    <input type="url" name="conforms_to" placeholder="http://www.openarchives.org/OAI/2.0/"
+           value="{{ conforms_to }}">
+  </label>
+  <button type="submit">Validate</button>
+</form>
+
+{% if message %}
+<p class="error">{{ message }}</p>
+{% endif %}
+
+{% if result is not none %}
+<h2>Result for <code>{{ url }}</code></h2>
+<div class="split">
+  <div>
+    <div class="table-scroll">
+    <table>
+      <tbody>
+      {% for label, value in rows %}
+        <tr><th>{{ label }}</th>
+          <td{% if label == "Valid" %} class="valid-{{ value | lower }}"{% endif %}>{{ value }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="note">How the score adds up (max 10): 3 for an HTTP status below 400, 2 if the content type matches the profile, up to 2 for the profile's patterns in the response body, 1 for the service type, 2 if conformsTo points at this type's specification, +1 if the response names that specification, -2 if it names a different one. The harvester takes conformsTo from the repository's own metadata; leave the field empty and the score here can come out up to 2 points lower.</p>
+  </div>
+  <div>
+    <details open>
+      <summary>Validator output (JSON)</summary>
+      <pre>{{ result_json }}</pre>
+    </details>
+  </div>
+</div>
+{% endif %}
+</main>
+<footer>
+  <p>EOSC EDEN WP2 &middot; <a href="/docs">JSON API</a></p>
+</footer>
+</body>
+</html>
