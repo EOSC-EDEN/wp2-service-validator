@@ -1,0 +1,37 @@
+[Unit]
+Description=EDEN Service Validator (public demo)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=validator
+Group=validator
+WorkingDirectory=/opt/eden-validator
+EnvironmentFile=/etc/eden-validator.env
+# Address, port and trusted proxy come from UVICORN_HOST, UVICORN_PORT and
+# UVICORN_FORWARDED_ALLOW_IPS in the environment file. Flags here would override
+# them. With UVICORN_HOST unset uvicorn binds loopback, where the entry VM gets a 502.
+ExecStart=/opt/eden-validator/venv/bin/uvicorn controllers.api:app
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+# AF_UNIX and AF_NETLINK stay allowed because glibc's getaddrinfo uses them,
+# and the validator resolves a hostname on every check (see the harvester's
+# unit for the longer reasoning).
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+# Blast-radius bounds, not measured figures. Nothing caps the size of a
+# response the validator reads, so a huge body could otherwise take the VM's
+# memory, which it shares with the harvester (capped at 1G).
+MemoryMax=512M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target
