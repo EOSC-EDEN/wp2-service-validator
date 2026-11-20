@@ -1,9 +1,8 @@
-from urllib.parse import urlparse
-
 from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Query
+from controllers.guard import BlockedTargetError, check_target
 from eden_validator.validator import ServiceValidator
 from eden_validator.type_resolver import resolve_type
 import uvicorn
@@ -37,18 +36,12 @@ def validate_endpoint(
     met, and an **inferred_type** flag (bool) indicating whether the service type was
     inferred by the identifier rather than supplied explicitly.
     """
-    # --- SSRF prevention: only http/https are allowed via the API ---
-    # ftp:// URLs are handled by the batch validator which runs server-side in a controlled
-    # environment; they must not be accepted over the public HTTP API.
-    parsed_scheme = urlparse(url).scheme.lower()
-    if parsed_scheme not in ('http', 'https'):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Invalid URL scheme '{parsed_scheme}'. "
-                "Only http:// and https:// are accepted by this endpoint."
-            ),
-        )
+    # ftp:// and private hosts are for the batch validator, which runs server-side
+    # in a controlled environment; the public HTTP API refuses them.
+    try:
+        check_target(url)
+    except BlockedTargetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # --- Type resolution: conforms_to → explicit service_type → identifier ---
     resolved_type = service_type
