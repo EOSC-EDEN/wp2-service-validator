@@ -16,7 +16,7 @@ It provides three modes of operation:
 *   **Smart Fallbacks:** Automatically attempts POST requests for endpoints throwing 405 errors, and performs documentation page detection to prevent false negatives.
 *   **Data-Driven Configuration:** All validation rules, signatures, and match logic are centralized in a single `service_profiles.json` schema.
 *   **Unsupported Detection:** Early detection and skipping for unsupported service types (e.g. NetCDF) to save processing time.
-*   **SSRF Protection:** The API endpoint rejects non-HTTP/HTTPS URLs (e.g. `file://`, `ftp://`).
+*   **Target check:** The demo page and the API refuse non-HTTP/HTTPS URLs (e.g. `file://`, `ftp://`) and hosts that resolve to private, loopback or link-local addresses. Only the submitted URL is checked, not where it redirects to.
 
 ## Installation
 
@@ -68,6 +68,10 @@ root so the `controllers` and `eden_validator` packages resolve on the import pa
 service-validator/
 ├── controllers/          # Entry points — the three modes of operation
 │   ├── api.py            #   FastAPI web service (uvicorn controllers.api:app)
+│   ├── demo.py           #   Demo page at / (form, result table, raw JSON)
+│   ├── guard.py          #   Refuses non-public targets for / and /validate
+│   ├── templates/        #   Demo page template
+│   ├── static/           #   Logo and favicon
 │   ├── check_service.py  #   CLI: validate a single URL
 │   └── batch_validator.py#   CLI: batch-validate from Fuseki (or a CSV)
 ├── eden_validator/       # Validation engine and helpers
@@ -78,6 +82,7 @@ service-validator/
 │   ├── service_profiles.json        # Validation rules/signatures (synced in, not edited here)
 │   └── service_profiles.schema.json # JSON Schema for the profiles
 ├── data/                 # Input fixtures (e.g. legacy CSV for --input mode)
+├── deploy/               # systemd unit, env example and nginx site file for the EU node
 ├── output/               # Generated results (gitignored)
 ├── pyproject.toml        # Package metadata and distribution config
 ├── scripts/              # Dev/diagnostic one-offs (gitignored)
@@ -86,7 +91,7 @@ service-validator/
 
 | Layer | Holds | Notes |
 |-------|-------|-------|
-| `controllers/` | The API and two CLIs | Each is a thin entry point that wires together `eden_validator` components. |
+| `controllers/` | The API, the demo page and two CLIs | Each is a thin entry point that wires together `eden_validator` components. |
 | `eden_validator/` | The reusable validation logic | No CLI/HTTP concerns; imported by every controller. |
 | `config/` | Rules and schema | `service_profiles.json` is synced from the source of truth — edit it there, not here. |
 | `data/` / `output/` | Inputs vs. generated artifacts | Batch results default to `output/`. |
@@ -106,6 +111,10 @@ uvicorn controllers.api:app --reload
 *   **Example Request (type known):** `GET /validate?url=https://example.com/oai&service_type=OAI-PMH`
 *   **Example Request (type inferred):** `GET /validate?url=https://example.com/oai`
     *   Response includes `"inferred_type": true` and `"inferred_service_type": "OAI-PMH"` when auto-inferred.
+*   **Demo page:** Open `http://127.0.0.1:8000/`. Enter an endpoint URL, pick its service type and
+    optionally a conformsTo URL; the page shows the full validator result as a table and as JSON.
+    The type is required there: without one the check has nothing to compare against. Common types
+    (by how often they turned up in the October 2026 harvest) are listed first.
 
 ### 2. Single URL Check (CLI)
 
@@ -207,3 +216,10 @@ See `.env.example` for the full list. Key variables:
 | `FUSEKI_PASSWORD` | *(empty)* | Fuseki Basic Auth password |
 | `IDENTIFIER_BASE_URL` | `http://localhost:8001` | Base URL of the `wp2-service-identifier` service |
 | `IDENTIFIER_CONFIDENCE_THRESHOLD` | `5.0` | Minimum confidence (0–10) to auto-proceed in CLI mode without prompting |
+| `EDEN_ALLOW_PRIVATE_TARGETS` | *(unset)* | `true` lets the demo page and `/validate` check private/loopback hosts. For local development only; leave unset on the EU node |
+
+## Deploying the demo
+
+`deploy/` holds the systemd unit, an environment example and the nginx site file the
+demo runs with on the EDEN EU node. The step-by-step runbook describes our specific VMs,
+not the software, so it is kept out of this public repository.

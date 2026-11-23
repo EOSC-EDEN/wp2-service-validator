@@ -1,9 +1,12 @@
-from urllib.parse import urlparse
+from pathlib import Path
 
 from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
+from controllers import demo
+from controllers.guard import BlockedTargetError, check_target
 from eden_validator.validator import ServiceValidator
 from eden_validator.type_resolver import resolve_type
 import uvicorn
@@ -16,6 +19,11 @@ app = FastAPI(
 
 # Initialize the validator once when the application starts
 validator = ServiceValidator()
+
+# The demo page reads the validator from app.state, so it shares this instance.
+app.state.validator = validator
+app.include_router(demo.router)
+app.mount('/static', StaticFiles(directory=Path(__file__).parent / 'static'), name='static')
 
 @app.get("/validate", summary="Validate a single service endpoint")
 def validate_endpoint(
@@ -37,18 +45,12 @@ def validate_endpoint(
     met, and an **inferred_type** flag (bool) indicating whether the service type was
     inferred by the identifier rather than supplied explicitly.
     """
-    # --- SSRF prevention: only http/https are allowed via the API ---
-    # ftp:// URLs are handled by the batch validator which runs server-side in a controlled
-    # environment; they must not be accepted over the public HTTP API.
-    parsed_scheme = urlparse(url).scheme.lower()
-    if parsed_scheme not in ('http', 'https'):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Invalid URL scheme '{parsed_scheme}'. "
-                "Only http:// and https:// are accepted by this endpoint."
-            ),
-        )
+    # ftp:// and private hosts are for the batch validator, which runs server-side
+    # in a controlled environment; the public HTTP API refuses them.
+    try:
+        check_target(url)
+    except BlockedTargetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # --- Type resolution: conforms_to → explicit service_type → identifier ---
     resolved_type = service_type
