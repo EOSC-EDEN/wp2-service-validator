@@ -212,11 +212,15 @@ __marimo__/
 
 # ---- Project-local clutter (kept on disk, not shared) ----
 
-# JetBrains IDE
+# Editors
 .idea/
+.vscode/
 
 # Office temp / lock files
 ~$*
+
+# Cygwin/MSYS crash dumps
+*.stackdump
 
 # Local-only test suite
 tests/
@@ -225,14 +229,9 @@ tests/
 output/*
 !output/.gitkeep
 
-# Research / reference material (large binaries)
-docs/Knowledge/
-docs/Knowledge/Google_Drive_Export/
-
-# Local working material (plans, requirements, specs)
+# Local working material (plans, drafts, research, unpublished docs)
 _working/
-docs/
-requirements/
+tasks/
 
 # Local scratch
 scripts/

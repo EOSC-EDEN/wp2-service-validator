@@ -18,6 +18,10 @@ It provides three modes of operation:
 *   **Unsupported Detection:** Early detection and skipping for unsupported service types (e.g. NetCDF) to save processing time.
 *   **Target check:** The demo page and the API refuse non-HTTP/HTTPS URLs (e.g. `file://`, `ftp://`) and hosts that resolve to private, loopback or link-local addresses. Only the submitted URL is checked, not where it redirects to.
 
+## Specification
+
+The specification is in [`docs/specification.md`](docs/specification.md). It is the source of truth; change it through a pull request.
+
 ## Installation
 
 1.  **Prerequisites:** Python 3.9 or higher.
@@ -83,6 +87,7 @@ service-validator/
 │   └── service_profiles.schema.json # JSON Schema for the profiles
 ├── data/                 # Input fixtures (e.g. legacy CSV for --input mode)
 ├── deploy/               # systemd unit, env example and nginx site file for the EU node
+├── docs/                 # Specification
 ├── output/               # Generated results (gitignored)
 ├── pyproject.toml        # Package metadata and distribution config
 ├── scripts/              # Dev/diagnostic one-offs (gitignored)
