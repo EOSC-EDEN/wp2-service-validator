@@ -96,9 +96,8 @@ This service supports the Data Management and Ingest functional entities of the 
 
 ## **Implementation Considerations**
 
-*   The profile file is maintained in the `service-profiles` repository and synced into the SV, the identifier and the harvester, so edits belong there. v0.1.1 ships 40 service types, from OAI-PMH and OGC services to IVOA protocols and FTP.
-*   The package does not bundle the profile file. Pass its path explicitly or set `EDEN_SERVICE_PROFILES`, which is the easier option in Docker.
-*   Requests use the User-Agent `EDEN-Endpoint-Validator/1.0` and a 10 second timeout. The [flowchart](Service%20Validator%20Flowchart.md) shows the order of the checks.
+*   The profile file is maintained in the `service-profiles` repository and synced into the SV, the identifier and the harvester, so edits belong there. v0.1.1 ships 40 service types, from OAI-PMH and OGC services to IVOA protocols and FTP. The package does not bundle the profile file. 
+*   Requests use the User-Agent `EDEN-Endpoint-Validator/1.0` and a 10 second timeout.
 *   `valid` and `score` can disagree: a documentation page that answers 200 is invalid but still scores 3.
 
 ## **Known Limitations**
