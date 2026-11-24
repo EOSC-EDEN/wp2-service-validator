@@ -1,5 +1,13 @@
 # Usage
 
+## Public demo
+
+A public instance runs at <https://eden-validator.vm.fedcloud.eu/>, with the demo page at the root and the API at `/validate` ([interactive docs](https://eden-validator.vm.fedcloud.eu/docs)). It is not connected to a service identifier, so always pass `service_type`; without it the API returns 503. Requests are rate-limited, so install it locally for anything more than a few checks.
+
+```bash
+curl "https://eden-validator.vm.fedcloud.eu/validate?url=https://example.org/oai&service_type=OAI-PMH"
+```
+
 ## Install
 
 You need Python 3.9 or newer. Run all commands from the repository root, so the `controllers` and `eden_validator` packages resolve.

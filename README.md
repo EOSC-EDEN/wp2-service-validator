@@ -4,4 +4,6 @@ Checks whether a repository service endpoint (OAI-PMH, SPARQL, OGC, REST APIs an
 
 Documentation: https://eosc-eden.github.io/wp2-service-validator/
 
+Demo: https://eden-validator.vm.fedcloud.eu/
+
 The specification is in [`docs/specification.md`](docs/specification.md). Change it through a pull request.

@@ -24,6 +24,13 @@ _IDENTIFIER_BASE_URL: str = os.getenv('IDENTIFIER_BASE_URL', 'http://localhost:8
 _CONFIDENCE_THRESHOLD: float = float(os.getenv('IDENTIFIER_CONFIDENCE_THRESHOLD', '5.0'))
 
 
+# How each entry point lets the caller skip the identifier. Batch has no per-record option.
+_SKIP_HINT = {
+    'cli': ' To skip the identifier, pass --type.',
+    'api': ' To skip the identifier, pass service_type.',
+}
+
+
 def resolve_type(url: str, mode: str = 'api') -> Tuple[Optional[str], bool]:
     """
     Infers the service type for *url* by calling the wp2-service-identifier /identify endpoint.
@@ -52,6 +59,7 @@ def resolve_type(url: str, mode: str = 'api') -> Tuple[Optional[str], bool]:
                        Callers must surface this to the user or record it per-item.
     """
     identifier_url = f"{_IDENTIFIER_BASE_URL.rstrip('/')}/identify"
+    hint = _SKIP_HINT.get(mode, '')
 
     try:
         resp = requests.get(identifier_url, params={'url': url}, timeout=10)
@@ -60,12 +68,11 @@ def resolve_type(url: str, mode: str = 'api') -> Tuple[Optional[str], bool]:
     except requests.ConnectionError:
         raise RuntimeError(
             f"Identifier service unreachable at '{_IDENTIFIER_BASE_URL}'. "
-            "Supply --type manually, or set IDENTIFIER_BASE_URL to the correct address."
+            f"Check IDENTIFIER_BASE_URL.{hint}"
         )
     except requests.RequestException as e:
         raise RuntimeError(
-            f"Identifier request failed: {e}. "
-            "Supply --type manually, or check IDENTIFIER_BASE_URL."
+            f"Identifier request failed: {e}. Check IDENTIFIER_BASE_URL.{hint}"
         )
 
     # Hard identification failure — the identifier itself signals that identification was
@@ -74,8 +81,7 @@ def resolve_type(url: str, mode: str = 'api') -> Tuple[Optional[str], bool]:
     error = data.get('error')
     if error:
         raise RuntimeError(
-            f"Identifier could not identify '{url}': {error}. "
-            "Supply --type manually."
+            f"Identifier could not identify '{url}': {error}.{hint}"
         )
 
     identified_type: Optional[str] = data.get('identified_type')

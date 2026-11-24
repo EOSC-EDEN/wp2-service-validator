@@ -25,6 +25,7 @@ Work in progress, TRL4. The [specification](specification.md) describes release 
 
 | I want to | Go to |
 |-----------|-------|
+| Try it without installing anything | [Public demo](usage.md#public-demo) |
 | Check one endpoint in the browser or with curl | [Web API and demo page](usage.md#web-api-and-demo-page) |
 | Validate every endpoint in the registry | [Batch validation](usage.md#batch-validation) |
 | Call the validator from Python | [As a Python library](usage.md#as-a-python-library) |
