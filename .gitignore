@@ -236,3 +236,6 @@ tasks/
 # Local scratch
 scripts/
 data/services_default_queries_jw.csv
+
+# Docs build tooling
+.venv-docs/

@@ -1,0 +1,42 @@
+site_name: EDEN Service Validator
+site_description: Checks that repository service endpoints are reachable and behave like the service type they claim to be.
+site_url: https://eosc-eden.github.io/wp2-service-validator/
+repo_url: https://github.com/EOSC-EDEN/wp2-service-validator
+docs_dir: docs
+exclude_docs: |
+  requirements.txt
+
+plugins:
+  - search
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    anchors: warn
+
+nav:
+  - Home: index.md
+  - Usage: usage.md
+  - Reference: reference.md
+  - Specification: specification.md
